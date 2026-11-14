@@ -1,0 +1,29 @@
+[gd_scene format=3 uid="uid://6waluut2cqtk"]
+
+[ext_resource type="Script" uid="uid://c4yu2mq3nsbbp" path="res://scripts/main.gd" id="1_o5qli"]
+
+[node name="Main" type="Node2D" unique_id=1431197722]
+script = ExtResource("1_o5qli")
+
+[node name="Tabuleiro" type="Node2D" parent="." unique_id=1805346657]
+
+[node name="UI" type="CanvasLayer" parent="." unique_id=1349430156]
+
+[node name="BotaoRolar" type="Button" parent="UI" unique_id=1913569374]
+offset_left = 100.0
+offset_top = 100.0
+offset_right = 149.0
+offset_bottom = 131.0
+text = "Rolar"
+
+[node name="LabelResultado" type="Label" parent="UI" unique_id=1544142226]
+offset_left = 100.0
+offset_top = 160.0
+offset_right = 196.0
+offset_bottom = 183.0
+text = "Role o dado!"
+
+[node name="Marcador" type="ColorRect" parent="." unique_id=1082257869]
+offset_right = 40.0
+offset_bottom = 40.0
+color = Color(1, 0, 0, 1)
