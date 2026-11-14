@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="Buff" format=3 uid="uid://dp1goc2i6qa8u"]
+
+[ext_resource type="Script" uid="uid://bojuqkqv6tqib" path="res://scripts/buff.gd" id="1_m8qbn"]
+
+[resource]
+script = ExtResource("1_m8qbn")
+nome = "Dado Ampliado"
+raridade = "Rara"
+descricao = "+1 lado no dado"
+id_efeito = "mais_lados"
+metadata/_custom_type_script = "uid://bojuqkqv6tqib"

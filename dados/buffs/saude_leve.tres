@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="Buff" format=3 uid="uid://bj6k7mc3gmysr"]
+
+[ext_resource type="Script" uid="uid://bojuqkqv6tqib" path="res://scripts/buff.gd" id="1_dukld"]
+
+[resource]
+script = ExtResource("1_dukld")
+nome = "Saúde Leve"
+descricao = "+1 de PV máximo"
+id_efeito = "low_health"
+metadata/_custom_type_script = "uid://bojuqkqv6tqib"

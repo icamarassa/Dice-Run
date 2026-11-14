@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="Buff" format=3 uid="uid://orpo8ilgockf"]
+
+[ext_resource type="Script" uid="uid://bojuqkqv6tqib" path="res://scripts/buff.gd" id="1_ntetq"]
+
+[resource]
+script = ExtResource("1_ntetq")
+nome = "Curativo"
+descricao = "Cura 2 PV"
+id_efeito = "cura"
+valor = 2
+metadata/_custom_type_script = "uid://bojuqkqv6tqib"

@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="Buff" format=3 uid="uid://cwkda4rjn4thl"]
+
+[ext_resource type="Script" uid="uid://bojuqkqv6tqib" path="res://scripts/buff.gd" id="1_w3nqv"]
+
+[resource]
+script = ExtResource("1_w3nqv")
+nome = "Armadura"
+descricao = "Debuffs tiram 1 PV a menos"
+id_efeito = "reduz_dano"
+metadata/_custom_type_script = "uid://bojuqkqv6tqib"

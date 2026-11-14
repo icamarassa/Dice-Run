@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="Buff" format=3 uid="uid://h8syyvd0jhng"]
+
+[ext_resource type="Script" uid="uid://bojuqkqv6tqib" path="res://scripts/buff.gd" id="1_xt7le"]
+
+[resource]
+script = ExtResource("1_xt7le")
+nome = "Regeneração Leve"
+descricao = "+1 de cura a cada 4 casas"
+id_efeito = "low_regen"
+metadata/_custom_type_script = "uid://bojuqkqv6tqib"

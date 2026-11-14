@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="Buff" format=3 uid="uid://bsmshwjlt4x4r"]
+
+[ext_resource type="Script" uid="uid://bojuqkqv6tqib" path="res://scripts/buff.gd" id="1_ccc14"]
+
+[resource]
+script = ExtResource("1_ccc14")
+nome = "Primeiros Socorros"
+descricao = "Cura 3 PV"
+id_efeito = "cura"
+valor = 3
+metadata/_custom_type_script = "uid://bojuqkqv6tqib"

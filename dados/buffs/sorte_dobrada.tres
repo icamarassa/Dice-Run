@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="Buff" format=3 uid="uid://br6tiko63cg5p"]
+
+[ext_resource type="Script" uid="uid://bojuqkqv6tqib" path="res://scripts/buff.gd" id="1_7pmcy"]
+
+[resource]
+script = ExtResource("1_7pmcy")
+nome = "Sorte Dobrada"
+descricao = "+1 casa se repetir o número"
+id_efeito = "bonus_repetido"
+metadata/_custom_type_script = "uid://bojuqkqv6tqib"
