@@ -10,12 +10,12 @@ enum Estado { REPOUSO, SEGURANDO, VOANDO, ASSENTANDO, ALINHANDO }
 
 const AREA := Rect2(0, 0, 400, 220)      # tamanho da mesa
 const RAIO := 38.0
-const GRAVIDADE := 1600.0
-const ELASTICIDADE := 0.5
+const GRAVIDADE := 900.0
+const ELASTICIDADE := 0.7
 const VEL_MAX := 1000.0
 const ALTURA_SEGURANDO := 46.0
-const COR_DADO := Color(0.95, 0.95, 0.9)
 const COR_BONUS := Color(1.0, 0.85, 0.35)
+const LUZ := Vector2(-0.6, -0.8)         # de onde vem a luz (cima e esquerda)
 
 # lados do dado -> [lados do desenho, rotação inicial]
 # Assim o formato muda quando o dado evolui.
@@ -27,6 +27,17 @@ const FORMAS := {
 	10: [8, PI / 8.0],
 	12: [5, -PI / 2.0],
 	20: [10, -PI / 2.0],
+}
+
+# Cada dado tem sua cor fixa
+const COR_POR_LADOS := {
+	3: Color(0.95, 0.95, 0.95),   # branco
+	4: Color(0.25, 0.75, 0.35),   # verde
+	6: Color(0.25, 0.5, 0.95),    # azul
+	8: Color(0.9, 0.25, 0.25),    # vermelho
+	10: Color(0.65, 0.35, 0.9),   # roxo
+	12: Color(1.0, 0.6, 0.15),    # laranja
+	20: Color(1.0, 0.88, 0.2),    # amarelo
 }
 
 var lados := 3:
@@ -55,16 +66,20 @@ var esmagar := Vector2.ONE     # achatamento (squash and stretch)
 var texto := "?"
 var face_final := 1
 var bonus := false
-var cor_dado := COR_DADO
 
 var vel_mouse := Vector2.ZERO
 var tempo_troca := 0.0
 var quicadas := 0
 var tempo := 0.0
 var estilo_mesa: StyleBoxFlat
+var som_toc: AudioStreamPlayer
 
 
 func _ready() -> void:
+	som_toc = AudioStreamPlayer.new()
+	som_toc.stream = preload("res://sons/dado.wav")
+	add_child(som_toc)
+
 	estilo_mesa = StyleBoxFlat.new()
 	estilo_mesa.bg_color = Color(0.07, 0.06, 0.1, 0.85)
 	estilo_mesa.border_color = Color(0.6, 0.48, 0.25)
@@ -105,7 +120,7 @@ func _input(event: InputEvent) -> void:
 		if habilitado and estado == Estado.REPOUSO and _mouse_sobre_dado():
 			estado = Estado.SEGURANDO
 			vel_mouse = Vector2.ZERO
-			cor_dado = COR_DADO
+			bonus = false
 	elif estado == Estado.SEGURANDO:
 		_soltar()
 
@@ -124,7 +139,7 @@ func _soltar() -> void:
 
 
 func _lancar(velocidade: Vector2) -> void:
-	cor_dado = COR_DADO
+	bonus = false
 	vel = velocidade
 	vz = randf_range(380.0, 520.0)
 	vang = randf_range(10.0, 16.0) * (1.0 if randf() < 0.5 else -1.0)
@@ -201,6 +216,7 @@ func _processar_voo(delta: float) -> void:
 		if quicadas >= 3 or absf(vz) < 140.0:
 			_assentar()
 		else:
+			_tocar_som()
 			vz = -vz * ELASTICIDADE
 			vel *= 0.7
 			vang *= 0.6
@@ -211,6 +227,7 @@ func _assentar() -> void:
 	estado = Estado.ASSENTANDO
 	vz = 0.0
 	texto = str(face_final)
+	_tocar_som()
 	_esmagar()
 
 
@@ -233,8 +250,6 @@ func _alinhar() -> void:
 	t.tween_property(self, "ang", alvo, 0.15)
 	await t.finished
 	ang = 0.0
-	if bonus:
-		cor_dado = COR_BONUS
 	estado = Estado.REPOUSO
 	pousou.emit()
 
@@ -268,9 +283,19 @@ func _esmagar() -> void:
 		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 
+# Toca o "toc" com o tom levemente diferente a cada vez (soa menos repetitivo)
+func _tocar_som() -> void:
+	som_toc.pitch_scale = randf_range(0.9, 1.15)
+	som_toc.play()
+
+
 # ======================================================
 #  DESENHO
 # ======================================================
+
+func _cor_do_dado() -> Color:
+	return COR_POR_LADOS.get(lados, Color.WHITE)
+
 
 func _contorno() -> PackedVector2Array:
 	var forma: Array = FORMAS.get(lados, [4, PI / 4.0])
@@ -284,6 +309,7 @@ func _contorno() -> PackedVector2Array:
 
 func _draw() -> void:
 	var fonte := ThemeDB.fallback_font
+	var cor := _cor_do_dado()
 
 	# Mesa
 	draw_style_box(estilo_mesa, AREA)
@@ -309,20 +335,39 @@ func _draw() -> void:
 	var lateral := PackedVector2Array()
 	for p in pontos:
 		lateral.append(p + Vector2(0, 8))
-	draw_colored_polygon(lateral, cor_dado.darkened(0.45))
+	draw_colored_polygon(lateral, cor.darkened(0.5))
 
-	# Face de cima, contorno e um brilho suave
-	draw_colored_polygon(pontos, cor_dado)
+	# Face de cima dividida em FACETAS (triângulos). Cada uma recebe mais ou menos
+	# brilho conforme o lado para onde aponta em relação à luz: isso cria volume.
+	var n := pontos.size()
+	for i in n:
+		var a := pontos[i]
+		var b := pontos[(i + 1) % n]
+		var direcao := ((a + b) / 2.0 - centro).normalized()
+		var luz := direcao.dot(LUZ)
+		var cor_faceta := cor
+		if luz > 0.0:
+			cor_faceta = cor.lightened(0.3 * luz)
+		else:
+			cor_faceta = cor.darkened(0.35 * -luz)
+		draw_colored_polygon(PackedVector2Array([centro, a, b]), cor_faceta)
+
+	# Contorno
 	var fechado := pontos.duplicate()
 	fechado.append(pontos[0])
-	draw_polyline(fechado, cor_dado.darkened(0.3), 3.0, true)
+	draw_polyline(fechado, cor.darkened(0.45), 3.0, true)
 
-	var brilho := PackedVector2Array()
-	for p in pontos:
-		brilho.append(centro.lerp(p, 0.8) + Vector2(-2, -3))
-	draw_colored_polygon(brilho, Color(1, 1, 1, 0.18))
-
-	# Número (gira junto com o dado)
+	# Número (gira junto com o dado), com contorno para ler em qualquer cor
+	var cor_texto := Color(0.08, 0.08, 0.12)
+	var cor_borda := Color(1, 1, 1, 0.55)
+	if cor.get_luminance() < 0.45:
+		cor_texto = Color.WHITE
+		cor_borda = Color(0, 0, 0, 0.6)
 	draw_set_transform(centro, ang, escala)
-	draw_string(fonte, Vector2(-40, 14), texto, HORIZONTAL_ALIGNMENT_CENTER, 80.0, 40, Color(0.1, 0.1, 0.15))
+	draw_string_outline(fonte, Vector2(-40, 14), texto, HORIZONTAL_ALIGNMENT_CENTER, 80.0, 40, 5, cor_borda)
+	draw_string(fonte, Vector2(-40, 14), texto, HORIZONTAL_ALIGNMENT_CENTER, 80.0, 40, cor_texto)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+	# Bônus de repetição: um anel dourado em volta do dado quando ele para
+	if bonus and estado == Estado.REPOUSO:
+		draw_arc(centro, RAIO * 1.3, 0.0, TAU, 48, COR_BONUS, 4.0, true)
