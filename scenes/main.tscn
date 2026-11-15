@@ -49,3 +49,5 @@ show_percentage = false
 offset_right = 40.0
 offset_bottom = 40.0
 color = Color(1, 0, 0, 1)
+
+[node name="Camera2D" type="Camera2D" parent="." unique_id=1690541185]

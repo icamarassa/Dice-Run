@@ -4,10 +4,14 @@ signal escolha_feita
 
 enum TipoCasa { NEUTRA, BUFF, DEBUFF }
 
-var TOTAL_CASAS := 15
+var total_casas := 15
 const TAMANHO_CASA := 64
 const ESPACO := 8
 const ORIGEM := Vector2(36, 300)
+
+# Metade da janela (1152x648)
+const METADE_LARGURA := 576.0
+const METADE_ALTURA := 324.0
 
 const VIDA_INICIAL := 10
 const DANO_BASE := 4
@@ -22,7 +26,7 @@ const CHANCE_BUFF := 0.25
 const PASTA_BUFFS := "res://dados/buffs/"
 
 const CORES := {
-	TipoCasa.NEUTRA: Color(0.3, 0.3, 0.35),
+	TipoCasa.NEUTRA: Color(0.319, 0.267, 0.45, 1.0),
 	TipoCasa.BUFF: Color(0.2, 0.65, 0.3),
 	TipoCasa.DEBUFF: Color(0.75, 0.2, 0.2),
 }
@@ -38,11 +42,13 @@ var casas_andadas := 0
 var tipos_casas: Array[int] = []
 var todos_buffs: Array[Buff] = []
 var painel_escolha: PanelContainer
+var tween_camera: Tween
 var ocupado := false
 var jogo_terminou := false
 
 @onready var tabuleiro: Node2D = $Tabuleiro
 @onready var marcador: ColorRect = $Marcador
+@onready var camera: Camera2D = $Camera2D
 @onready var botao_rolar: Button = $UI/BotaoRolar
 @onready var label_resultado: Label = $UI/LabelResultado
 @onready var label_vida: Label = $UI/LabelVida
@@ -99,22 +105,24 @@ func _sortear_opcoes(quantidade := 3) -> Array[Buff]:
 # ---------- Tabuleiro e níveis ----------
 
 func _montar_nivel() -> void:
-	# Limpa o tabuleiro anterior, se houver
 	for casa in tabuleiro.get_children():
 		casa.queue_free()
+
 	tipos_casas.clear()
 	posicao_atual = 0
+	casas_andadas = 0
 
 	_criar_tabuleiro()
 	marcador.position = _posicao_do_marcador(0)
+	_atualizar_camera(false)
 	_atualizar_vida()
 
 
 func _criar_tabuleiro() -> void:
-	for i in TOTAL_CASAS:
+	for i in total_casas:
 		# Primeira e última casas sempre neutras
 		var tipo: int = TipoCasa.NEUTRA
-		if i != 0 and i != TOTAL_CASAS - 1:
+		if i != 0 and i != total_casas - 1:
 			tipo = _sortear_tipo()
 		tipos_casas.append(tipo)
 
@@ -148,8 +156,6 @@ func _dano_do_nivel() -> int:
 
 
 func _transicao_de_nivel() -> void:
-	vida = min(vida * 0.2, vida_maxima)
-	
 	var tela := ColorRect.new()
 	tela.color = Color(0, 0, 0, 0)
 	tela.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -169,9 +175,13 @@ func _transicao_de_nivel() -> void:
 	t.tween_property(tela, "color:a", 1.0, 0.5)
 	await t.finished
 
-	# Troca de nível com a tela escura
+	# Troca de nível enquanto a tela está preta
 	nivel += 1
+	total_casas += 2
+	vida = mini(vida + 2, vida_maxima)
+
 	_montar_nivel()
+
 	label_resultado.text = "Nível %d! Os perigos aumentaram." % nivel
 	titulo.text = "Nível %d" % nivel
 
@@ -201,7 +211,7 @@ func _on_botao_rolar_pressed() -> void:
 
 	# Anda casa por casa
 	for i in resultado:
-		if posicao_atual >= TOTAL_CASAS - 1:
+		if posicao_atual >= total_casas - 1:
 			break
 		posicao_atual += 1
 		await _mover_um_passo(posicao_atual)
@@ -216,6 +226,10 @@ func _on_botao_rolar_pressed() -> void:
 
 func _mover_um_passo(indice: int) -> void:
 	var destino := _posicao_do_marcador(indice)
+
+	# A câmera começa a andar junto com o marcador
+	_atualizar_camera(true, destino.x)
+
 	var tween := create_tween()
 	tween.set_parallel(true)
 	# Desliza no eixo X enquanto sobe e desce no Y (o "pulinho")
@@ -252,7 +266,7 @@ func _resolver_casa() -> void:
 		label_resultado.text += "\nCasa de buff! Escolha uma melhoria."
 		await _escolher_buff()
 
-	if posicao_atual == TOTAL_CASAS - 1:
+	if posicao_atual == total_casas - 1:
 		await _transicao_de_nivel()
 
 
@@ -333,14 +347,36 @@ func _on_botao_reiniciar_pressed() -> void:
 	get_tree().reload_current_scene()
 
 
+# ---------- Câmera ----------
+
+func _atualizar_camera(animado := true, x_marcador := -1.0) -> void:
+	if x_marcador < 0.0:
+		x_marcador = marcador.position.x
+
+	# Limite: não mostrar espaço vazio depois do fim do tabuleiro
+	var fim_do_tabuleiro := ORIGEM.x + total_casas * (TAMANHO_CASA + ESPACO)
+	var alvo_x := minf(x_marcador + 200.0, fim_do_tabuleiro - METADE_LARGURA + 36.0)
+	# Limite: não passar do início
+	var alvo := Vector2(maxf(alvo_x, METADE_LARGURA), METADE_ALTURA)
+
+	if tween_camera:
+		tween_camera.kill()
+
+	if animado:
+		tween_camera = create_tween()
+		tween_camera.tween_property(camera, "position", alvo, 0.2)
+	else:
+		camera.position = alvo
+
+
 # ---------- Juice ----------
 
 func _tremer(intensidade := 8.0) -> void:
 	var tween := create_tween()
 	for i in 6:
 		var desvio := Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * intensidade
-		tween.tween_property(self, "position", desvio, 0.03)
-	tween.tween_property(self, "position", Vector2.ZERO, 0.03)
+		tween.tween_property(camera, "offset", desvio, 0.03)
+	tween.tween_property(camera, "offset", Vector2.ZERO, 0.03)
 
 
 func _piscar() -> void:
