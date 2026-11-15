@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="Buff" format=3 uid="uid://bca3aamh6u8ee"]
+
+[ext_resource type="Script" uid="uid://bojuqkqv6tqib" path="res://scripts/buff.gd" id="1_h6oeo"]
+
+[resource]
+script = ExtResource("1_h6oeo")
+nome = "Benção do Rei Arthur"
+descricao = "A cada 10 casas lhe protege completamente de um dano"
+id_efeito = "bencao_divina"
+metadata/_custom_type_script = "uid://bojuqkqv6tqib"

@@ -5,7 +5,7 @@
 [resource]
 script = ExtResource("1_ccc14")
 nome = "Primeiros Socorros"
-descricao = "Cura 3 PV"
+descricao = "Cura 4 PV"
 id_efeito = "cura"
-valor = 3
+valor = 4
 metadata/_custom_type_script = "uid://bojuqkqv6tqib"
