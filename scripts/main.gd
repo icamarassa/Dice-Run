@@ -18,7 +18,6 @@ const DANO_BASE := 4
 const CURA_POR_NIVEL := 0.5          # o curativo melhora 0,5 PV por nível
 
 const CASAS_PARA_REGEN := 4
-const CASAS_PARA_ESCUDO := 10        # Benção do Rei Arthur
 const CHANCE_DEBUFF_BASE := 0.25
 const CHANCE_DEBUFF_POR_NIVEL := 0.03
 const CHANCE_DEBUFF_MAX := 0.45
@@ -27,12 +26,10 @@ const CHANCE_BUFF := 0.25
 const PASTA_BUFFS := "res://dados/buffs/"
 
 # ---------- Interface ----------
-const DADO_POS := Vector2(330, 95)
-const DICA_POS := Vector2(430, 100)
+const MESA_POS := Vector2(360, 40)    # onde fica a mesa do dado
+const DICA_POS := Vector2(100, 165)
 const BARRA_POS := Vector2(100, 50)
 const BARRA_TAM := Vector2(220, 26)
-const COR_DADO := Color(0.95, 0.95, 0.9)
-const COR_DADO_BONUS := Color(1.0, 0.85, 0.35)
 const SEGUNDOS_PARA_DICA := 7.0
 
 const COR_AVISO := Color(1.0, 0.9, 0.4)
@@ -87,6 +84,7 @@ var regen_valor := 0
 var escudo_max := 0
 var escudo_cargas := 0
 var passos_totais := 0
+var passos_para_escudo := 0
 var tipos_casas: Array[int] = []
 var todos_buffs: Array[Buff] = []
 var ocupado := false
@@ -96,8 +94,7 @@ var buffs_pegos := 0
 
 # ---------- Nós criados por código ----------
 var overlay_atual: ColorRect
-var dado_visual: ColorRect
-var face_dado: Label
+var dado_fisico: DadoFisico
 var dica_rolar: Label
 var painel_status: PanelContainer
 var label_status: Label
@@ -123,8 +120,8 @@ func _ready() -> void:
 	_esconder_nos_antigos()
 	_organizar_interface()
 	_criar_barras()
-	_criar_dado_visual()
 	_criar_painel_status()
+	_criar_dado_fisico()
 	_criar_avisos()
 	_criar_dica()
 
@@ -138,6 +135,7 @@ func _ready() -> void:
 	add_child(timer_dica)
 	timer_dica.start()
 
+	dado_fisico.habilitado = true
 	_pulsar_botao(true)
 	_mostrar_dica()
 
@@ -290,24 +288,13 @@ func _atualizar_barras() -> void:
 		tween_barra.tween_property(barra_dano, "value", vida, 0.25)
 
 
-# ---------- Dado visual, painel, avisos e dica ----------
+# ---------- Dado, painel, avisos e dica ----------
 
-func _criar_dado_visual() -> void:
-	dado_visual = ColorRect.new()
-	dado_visual.size = Vector2(72, 72)
-	dado_visual.pivot_offset = Vector2(36, 36)
-	dado_visual.position = DADO_POS
-	dado_visual.color = COR_DADO
-	$UI.add_child(dado_visual)
-
-	face_dado = Label.new()
-	face_dado.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	face_dado.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	face_dado.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	face_dado.add_theme_font_size_override("font_size", 40)
-	face_dado.add_theme_color_override("font_color", Color(0.1, 0.1, 0.15))
-	face_dado.text = "?"
-	dado_visual.add_child(face_dado)
+func _criar_dado_fisico() -> void:
+	dado_fisico = DadoFisico.new()
+	dado_fisico.position = MESA_POS
+	dado_fisico.lancado.connect(_on_dado_lancado)
+	$UI.add_child(dado_fisico)
 
 
 func _criar_painel_status() -> void:
@@ -327,6 +314,9 @@ func _criar_painel_status() -> void:
 
 
 func _atualizar_status() -> void:
+	if dado_fisico:
+		dado_fisico.lados = dado.lados
+
 	var texto := "MODIFICADORES\n"
 	texto += "Dado: d%d\n" % dado.lados
 	texto += "Vida máxima: %d\n" % vida_maxima
@@ -334,7 +324,9 @@ func _atualizar_status() -> void:
 	texto += "Regeneração: +%d a cada %d casas\n" % [regen_valor, CASAS_PARA_REGEN]
 	texto += "Bônus de repetição: +%d" % dado.bonus_repeticao
 	if escudo_max > 0:
-		texto += "\nEscudo de Arthur: %d/%d (a cada %d casas)" % [escudo_cargas, escudo_max, CASAS_PARA_ESCUDO]
+		texto += "\nEscudo de Arthur: %d/%d" % [escudo_cargas, escudo_max]
+		if escudo_cargas < escudo_max:
+			texto += " (recarrega em %d casas)" % (_casas_para_escudo() - passos_para_escudo)
 	label_status.text = texto
 
 
@@ -413,6 +405,11 @@ func _carregar_buffs() -> void:
 			if recurso is Buff:
 				todos_buffs.append(recurso)
 	print("Buffs carregados: ", todos_buffs.size())
+
+
+# Benção do Rei Arthur: o escudo demora mais a recarregar nas fases altas
+func _casas_para_escudo() -> int:
+	return 10 + nivel
 
 
 # Um buff só é oferecido se fizer sentido agora (ex.: não existe dado maior que d20)
@@ -724,17 +721,28 @@ func _transicao_de_nivel() -> void:
 #  TURNO
 # ======================================================
 
+# O botão ROLAR só "joga" o dado. O resto do turno começa em _on_dado_lancado,
+# que também é chamado quando o jogador solta o dado com o mouse.
 func _on_botao_rolar_pressed() -> void:
+	if ocupado or jogo_terminou:
+		return
+	dado_fisico.lancar_automatico()
+
+
+func _on_dado_lancado() -> void:
 	if ocupado or jogo_terminou:
 		return
 	ocupado = true
 	botao_rolar.disabled = true
+	dado_fisico.habilitado = false
 	_pulsar_botao(false)
 	_esconder_dica()
 	timer_dica.stop()
 
+	# A LÓGICA decide o número; o dado visual só o mostra ao pousar
 	var resultado := dado.rolar()
-	await _animar_dado()
+	dado_fisico.definir_resultado(dado.ultimo, dado.teve_bonus)
+	await dado_fisico.pousou
 
 	if dado.teve_bonus:
 		_aviso("Você tirou %d! (bônus de repetição)" % resultado)
@@ -754,39 +762,9 @@ func _on_botao_rolar_pressed() -> void:
 	if not jogo_terminou:
 		ocupado = false
 		botao_rolar.disabled = false
+		dado_fisico.habilitado = true
 		_pulsar_botao(true)
 		timer_dica.start()
-
-
-func _animar_dado() -> void:
-	dado_visual.color = COR_DADO
-
-	var t := create_tween().set_parallel(true)
-	t.tween_property(dado_visual, "rotation", TAU * 2.0, 0.55).from(0.0)
-	t.tween_property(dado_visual, "position:y", DADO_POS.y - 45.0, 0.25) \
-		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	t.tween_property(dado_visual, "position:y", DADO_POS.y, 0.25) \
-		.set_delay(0.25).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
-	# Troca o número várias vezes enquanto o dado gira
-	t.tween_method(_face_aleatoria, 0.0, 1.0, 0.55)
-	await t.finished
-
-	dado_visual.rotation = 0.0
-	face_dado.text = str(dado.ultimo)
-	if dado.teve_bonus:
-		dado_visual.color = COR_DADO_BONUS
-
-	# "Pop" ao pousar
-	var p := create_tween()
-	p.tween_property(dado_visual, "scale", Vector2(1.35, 1.35), 0.08)
-	p.tween_property(dado_visual, "scale", Vector2.ONE, 0.15) \
-		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	await p.finished
-
-
-func _face_aleatoria(_progresso: float) -> void:
-	if randf() < 0.3:
-		face_dado.text = str(randi_range(1, dado.lados))
 
 
 func _mover_um_passo(indice: int) -> void:
@@ -813,9 +791,13 @@ func _contar_passo() -> void:
 		_aviso("Regeneração: +%d PV" % regen_valor, COR_AVISO_BOM)
 		_atualizar_vida()
 
-	if escudo_max > 0 and passos_totais % CASAS_PARA_ESCUDO == 0 and escudo_cargas < escudo_max:
-		escudo_cargas += 1
-		_aviso("Benção do Rei Arthur: escudo recarregado!", COR_AVISO_BOM)
+	# Escudo: conta os passos desde a última recarga (só enquanto não está cheio)
+	if escudo_max > 0 and escudo_cargas < escudo_max:
+		passos_para_escudo += 1
+		if passos_para_escudo >= _casas_para_escudo():
+			passos_para_escudo = 0
+			escudo_cargas += 1
+			_aviso("Benção do Rei Arthur: escudo recarregado!", COR_AVISO_BOM)
 		_atualizar_status()
 
 
@@ -859,6 +841,7 @@ func _atualizar_vida() -> void:
 func _fim_de_jogo() -> void:
 	jogo_terminou = true
 	botao_rolar.disabled = true
+	dado_fisico.habilitado = false
 	_pulsar_botao(false)
 	timer_dica.stop()
 
@@ -867,18 +850,8 @@ func _fim_de_jogo() -> void:
 
 	var coluna := _criar_overlay(0.88)
 	var titulo := _novo_label("VOCÊ MORREU", 64, Color(0.9, 0.2, 0.2), false)
-	var detalhe := _novo_label(
-	"Você chegou ao nível %d" % nivel,
-	26,
-	Color(0.85, 0.85, 0.9),
-	false
-)
-	var estatisticas := _novo_label(
-	"Buffs obtidos: %d" % buffs_pegos,
-	22,
-	Color(0.85, 0.85, 0.9),
-	false
-)
+	var detalhe := _novo_label("Você chegou ao nível %d" % nivel, 26, Color(0.85, 0.85, 0.9), false)
+	var estatisticas := _novo_label("Buffs obtidos: %d" % buffs_pegos, 22, Color(0.85, 0.85, 0.9), false)
 
 	var botao := Button.new()
 	botao.text = "JOGAR DE NOVO"
@@ -893,9 +866,9 @@ func _fim_de_jogo() -> void:
 	coluna.add_child(botao)
 	coluna.add_child(estatisticas)
 
-	# Os três aparecem em sequência
+	# Tudo aparece em sequência
 	var i := 0
-	for item in [titulo, detalhe, botao]:
+	for item in [titulo, detalhe, botao, estatisticas]:
 		item.modulate.a = 0.0
 		item.create_tween().tween_property(item, "modulate:a", 1.0, 0.4).set_delay(0.25 * i)
 		i += 1

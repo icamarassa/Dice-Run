@@ -6,6 +6,6 @@
 script = ExtResource("1_h6oeo")
 nome = "Benção do Rei Arthur"
 raridade = "Lendaria"
-descricao = "A cada 10 casas lhe protege completamente de um dano"
+descricao = "A cada 18 casas lhe protege completamente de um dano"
 id_efeito = "escudo_arthur"
 metadata/_custom_type_script = "uid://bojuqkqv6tqib"
