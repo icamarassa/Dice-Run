@@ -125,7 +125,7 @@ func _piscar_ouro() -> void:
 
 func _mostrar_principal() -> void:
 	var c := _limpar()
-	c.add_child(Estilo.novo_label("JOGO DE DADOS", 84, COR_OURO, false))
+	c.add_child(Estilo.novo_label("DICE RUN", 84, COR_OURO, false))
 	c.add_child(Estilo.novo_label("Role. Escolha. Sobreviva.", 26, Color(0.8, 0.8, 0.92), false))
 	c.add_child(_espaco(24))
 

@@ -1,12 +1,11 @@
-[gd_resource type="Resource" script_class="Buff" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="Buff" format=3 uid="uid://17lluadb4oeo"]
 
-[ext_resource type="Script" path="res://scripts/buff.gd" id="1_buff"]
+[ext_resource type="Script" uid="uid://bojuqkqv6tqib" path="res://scripts/buff.gd" id="1_buff"]
 
 [resource]
 script = ExtResource("1_buff")
 nome = "Pele Encantada"
 raridade = "Epica"
-descricao = "Resistência a veneno e fogo"
+descricao = "Resistência a veneno e fogo - +25%"
 id_efeito = "resist_elemental"
-valor = 35
-unico = false
+valor = 25

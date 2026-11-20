@@ -1,12 +1,10 @@
-[gd_resource type="Resource" script_class="Buff" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="Buff" format=3 uid="uid://bbm8xlsk72q4l"]
 
-[ext_resource type="Script" path="res://scripts/buff.gd" id="1_buff"]
+[ext_resource type="Script" uid="uid://bojuqkqv6tqib" path="res://scripts/buff.gd" id="1_buff"]
 
 [resource]
 script = ExtResource("1_buff")
 nome = "Casca Ignífuga"
-raridade = "Comum"
-descricao = "Resistência a fogo"
+descricao = "Aumenta a Resistência a Fogo em 15%"
 id_efeito = "resist_fogo"
-valor = 25
-unico = false
+valor = 15

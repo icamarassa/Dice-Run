@@ -17,9 +17,15 @@ const METADE_ALTURA := 324.0
 
 const VIDA_INICIAL := 10
 const DANO_BASE := 4
+const DANO_POR_NIVEL := 0.5         # o dano base cresce 0,5 por nível
 const CURA_POR_NIVEL := 0.5          # o curativo melhora 0,5 PV por nível
 
 const CASAS_PARA_REGEN := 4
+const REGEN_MAX := 2                 # a regeneração nunca passa de +2
+const REGEN_BASE_POR_NIVEL := 3.0    # e cura no máximo isto (+0,3 por nível) a cada nível
+const REGEN_EXTRA_POR_NIVEL := 0.3
+const DESCANSO_PCT := 0.4            # ao subir de nível, você recupera 40% da vida máxima
+const PENALIDADE_ABANDONO := 0.5     # quem abandona a partida perde metade do ouro
 
 # ---------- Ouro ----------
 const OURO_BAU_BASE := 8
@@ -32,15 +38,19 @@ const OURO_POR_NIVEL_FINAL := 6      # bônus ao fim da partida, por nível alca
 const DENSIDADE_PERIGO_BASE := 0.30
 const DENSIDADE_PERIGO_POR_NIVEL := 0.015
 const DENSIDADE_PERIGO_MAX := 0.45
-const DENSIDADE_BUFF := 0.30
+const DENSIDADE_BUFF_INICIAL := 0.30   # buffs ficam mais raros conforme você avança
+const DENSIDADE_BUFF_FINAL := 0.20
+const NIVEL_BUFF_FINAL := 15
 const DENSIDADE_BAU := 0.08
 
 # ---------- Armadilhas ----------
-const MULT_FOGO := 1.3               # o fogo bate mais forte que os espinhos
+const MULT_FOGO := 1.5               # o fogo bate mais forte que os espinhos
+const FOGO_PISO := 0.20              # ...e nunca tira menos que 20% da vida máxima
 const PASSAGEM_ESPINHOS := 0.35      # passando por espinhos: 35% do dano normal
 const VENENO_TURNOS := 4
 const VENENO_TURNOS_MAX := 6
-const VENENO_FRACAO := 0.3           # dano do veneno por turno = 30% do dano do nível
+const VENENO_FRACAO := 0.4           # dano do veneno por turno = 40% do dano do nível
+const VENENO_PISO := 0.03            # ...e nunca menos que 3% da vida máxima
 const RECUO_ALCAPAO := 2
 
 # nivel_min: nível em que a armadilha aparece pela primeira vez
@@ -65,10 +75,10 @@ const CASAS_ESPECIAIS := {
 
 # ---------- Defesa ----------
 # Armadura: quanto mais você acumula, menos ela rende (nunca chega a 100%)
-const ARMADURA_K := 4.0
-const ARMADURA_K_POR_NIVEL := 0.5
-const REDUCAO_MAX := 0.75
-const RESIST_MAX := 0.8
+const ARMADURA_K := 6.0
+const ARMADURA_K_POR_NIVEL := 0.6
+const REDUCAO_MAX := 0.6
+const RESIST_MAX := 0.6
 
 # O dado só pode evoluir para o tamanho X a partir do nível Y
 const NIVEL_MIN_DADO := {4: 3, 6: 6, 8: 10, 10: 14, 12: 18, 20: 24}
@@ -136,6 +146,7 @@ var armadura := 0
 var resist_veneno := 0.0
 var resist_fogo := 0.0
 var regen_valor := 0
+var regen_orcamento := 0.0           # quanto a regeneração ainda pode curar neste nível
 var escudo_max := 0
 var escudo_cargas := 0
 var escudo_temp := 0                 # bloqueios da Postura de Ferro
@@ -217,13 +228,60 @@ func _ready() -> void:
 	_mostrar_dica()
 
 
-# F11 alterna tela cheia
 func _input(event: InputEvent) -> void:
+	# F11 alterna tela cheia
 	var tecla := event as InputEventKey
 	if tecla and tecla.pressed and not tecla.echo and tecla.keycode == KEY_F11:
 		Salvamento.tela_cheia = not Salvamento.tela_cheia
 		Salvamento.aplicar_opcoes()
 		Salvamento.salvar()
+
+	# ESC abre o menu de pausa
+	if event.is_action_pressed("ui_cancel") and not get_tree().paused and not jogo_terminou:
+		_abrir_pausa()
+		get_viewport().set_input_as_handled()
+
+
+# ======================================================
+#  PAUSA
+# ======================================================
+
+func _calcular_ouro_total() -> int:
+	var ouro_nivel := roundi((nivel - 1) * OURO_POR_NIVEL_FINAL * (1.0 + bonus_ouro))
+	return ouro_run + ouro_nivel
+
+
+func _abrir_pausa() -> void:
+	get_tree().paused = true      # congela tweens, timers e o dado
+	var pausa := MenuPausa.new()
+	pausa.configurar(_calcular_ouro_total(), PENALIDADE_ABANDONO)
+	pausa.continuar.connect(_on_pausa_continuar.bind(pausa))
+	pausa.abandonar.connect(_on_pausa_abandonar)
+	pausa.sair.connect(_on_pausa_sair)
+	$UI.add_child(pausa)
+
+
+func _on_pausa_continuar(pausa: Control) -> void:
+	pausa.queue_free()
+	get_tree().paused = false
+
+
+# Abandonar: você volta ao menu levando só parte do ouro da partida
+func _encerrar_partida_abandonada() -> void:
+	jogo_terminou = true
+	var ouro_levado := roundi(_calcular_ouro_total() * (1.0 - PENALIDADE_ABANDONO))
+	Salvamento.registrar_run(nivel, ouro_levado)
+	get_tree().paused = false
+
+
+func _on_pausa_abandonar() -> void:
+	_encerrar_partida_abandonada()
+	get_tree().change_scene_to_file(CENA_MENU)
+
+
+func _on_pausa_sair() -> void:
+	_encerrar_partida_abandonada()
+	get_tree().quit()
 
 
 # ======================================================
@@ -263,8 +321,10 @@ func _aplicar_classe_e_melhorias() -> void:
 	armadura += int(Salvamento.efeito_total("armadura_inicial", id))
 
 	var elemental := Salvamento.efeito_total("resist_elemental_inicial", id) / 100.0
-	resist_veneno = minf(resist_veneno + Salvamento.efeito_total("resist_veneno_inicial", id) / 100.0 + elemental, RESIST_MAX)
-	resist_fogo = minf(resist_fogo + Salvamento.efeito_total("resist_fogo_inicial", id) / 100.0 + elemental, RESIST_MAX)
+	resist_veneno = _somar_resist(resist_veneno, Salvamento.efeito_total("resist_veneno_inicial", id) / 100.0)
+	resist_veneno = _somar_resist(resist_veneno, elemental)
+	resist_fogo = _somar_resist(resist_fogo, Salvamento.efeito_total("resist_fogo_inicial", id) / 100.0)
+	resist_fogo = _somar_resist(resist_fogo, elemental)
 
 	dado.rerrola_ate += int(Salvamento.efeito_total("rerrola_inicial", id))
 	sorte += Salvamento.efeito_total("sorte_inicial", id) / 100.0
@@ -614,6 +674,12 @@ func _dano_reduzido(base: int, elemento: String) -> int:
 	return maxi(roundi(base * (1.0 - reducao)), 1)
 
 
+# Resistências se somam de forma "multiplicativa": cada nova resistência só age sobre o
+# dano que ainda restava. 25% + 25% dá 44% (e não 50%), e o teto é RESIST_MAX.
+func _somar_resist(atual: float, novo: float) -> float:
+	return minf(1.0 - (1.0 - atual) * (1.0 - novo), RESIST_MAX)
+
+
 # Aplica um dano. "bloqueavel" diz se escudos e posturas podem absorvê-lo.
 func _receber_dano(base: int, elemento: String, nome: String, bloqueavel := true, forte := true) -> void:
 	if bloqueavel and escudo_temp > 0:
@@ -690,7 +756,9 @@ func _buff_disponivel(buff: Buff) -> bool:
 		"ignora_gelo":
 			return not ignora_gelo
 		"reduz_queda":
-			return reducao_queda < RECUO_ALCAPAO
+			return reducao_queda < RECUO_ALCAPAO - 1    # o alçapão sempre derruba pelo menos 1 casa
+		"low_regen":
+			return regen_valor < REGEN_MAX
 	return true
 
 
@@ -885,12 +953,12 @@ func _aplicar_buff(buff: Buff) -> void:
 		"reduz_dano":
 			armadura += buff.valor
 		"resist_veneno":
-			resist_veneno = minf(resist_veneno + buff.valor / 100.0, RESIST_MAX)
+			resist_veneno = _somar_resist(resist_veneno, buff.valor / 100.0)
 		"resist_fogo":
-			resist_fogo = minf(resist_fogo + buff.valor / 100.0, RESIST_MAX)
+			resist_fogo = _somar_resist(resist_fogo, buff.valor / 100.0)
 		"resist_elemental":
-			resist_veneno = minf(resist_veneno + buff.valor / 100.0, RESIST_MAX)
-			resist_fogo = minf(resist_fogo + buff.valor / 100.0, RESIST_MAX)
+			resist_veneno = _somar_resist(resist_veneno, buff.valor / 100.0)
+			resist_fogo = _somar_resist(resist_fogo, buff.valor / 100.0)
 		"antidoto":
 			veneno_turnos = 0
 			veneno_dano = 0
@@ -910,7 +978,7 @@ func _aplicar_buff(buff: Buff) -> void:
 		"mais_opcoes":
 			opcoes_extra += buff.valor
 		"low_regen":
-			regen_valor += buff.valor
+			regen_valor = mini(regen_valor + buff.valor, REGEN_MAX)
 		"low_health":
 			vida_maxima += buff.valor
 			vida += buff.valor
@@ -933,6 +1001,7 @@ func _montar_nivel() -> void:
 	tipos_casas.clear()
 	posicao_atual = 0
 	hab_usos = hab_usos_max      # a habilidade recarrega a cada nível
+	regen_orcamento = REGEN_BASE_POR_NIVEL + REGEN_EXTRA_POR_NIVEL * nivel
 
 	_criar_tabuleiro()
 	marcador.position = _posicao_do_marcador(0)
@@ -977,6 +1046,11 @@ func _criar_tabuleiro() -> void:
 			casa.add_child(l)
 
 
+func _densidade_buff() -> float:
+	var progresso := clampf(float(nivel - 1) / float(NIVEL_BUFF_FINAL - 1), 0.0, 1.0)
+	return lerpf(DENSIDADE_BUFF_INICIAL, DENSIDADE_BUFF_FINAL, progresso)
+
+
 func _densidade_perigo() -> float:
 	return minf(
 		DENSIDADE_PERIGO_BASE + DENSIDADE_PERIGO_POR_NIVEL * (nivel - 1),
@@ -996,7 +1070,7 @@ func _gerar_tipos() -> Array[int]:
 	var indices: Array = range(1, n - 1)
 	indices.shuffle()
 
-	var qtd_buffs := roundi(interior * DENSIDADE_BUFF)
+	var qtd_buffs := roundi(interior * _densidade_buff())
 	var qtd_baus := roundi(interior * DENSIDADE_BAU)
 	var qtd_perigos := roundi(interior * _densidade_perigo())
 	if nivel >= 3:
@@ -1037,10 +1111,12 @@ func _gerar_tipos() -> Array[int]:
 		indices.erase(i)
 		qtd_baus -= 1
 
-	# 4) O resto dos buffs
+	# 4) O resto dos buffs (nunca dois colados)
 	for i in indices:
 		if qtd_buffs <= 0:
 			break
+		if tipos[i - 1] == TipoCasa.BUFF or tipos[i + 1] == TipoCasa.BUFF:
+			continue
 		tipos[i] = TipoCasa.BUFF
 		qtd_buffs -= 1
 
@@ -1079,7 +1155,7 @@ func _posicao_do_marcador(indice: int) -> Vector2:
 
 
 func _dano_do_nivel() -> int:
-	return DANO_BASE + int((nivel - 1) * 0.6)
+	return DANO_BASE + int((nivel - 1) * DANO_POR_NIVEL)
 
 
 func _frase_do_nivel(n: int) -> String:
@@ -1117,7 +1193,8 @@ func _transicao_de_nivel() -> void:
 	await t.finished
 
 	# Troca de nível enquanto a tela está preta
-	var descanso := 2 + bonus_descanso
+	# O descanso é uma porcentagem da vida máxima: assim vida máxima importa de verdade
+	var descanso := maxi(2, roundi(vida_maxima * DESCANSO_PCT)) + bonus_descanso
 	nivel += 1
 	total_casas += 2
 	vida = mini(vida + descanso, vida_maxima)
@@ -1232,9 +1309,13 @@ func _contar_passo() -> void:
 	passos_totais += 1
 
 	if regen_valor > 0 and passos_totais % CASAS_PARA_REGEN == 0 and vida < vida_maxima:
-		vida = mini(vida + regen_valor, vida_maxima)
-		_aviso("Regeneração: +%d PV" % regen_valor, COR_AVISO_BOM)
-		_atualizar_vida()
+		# A regeneração tem um "orçamento" por nível, para não anular todo o dano
+		var cura := mini(mini(regen_valor, vida_maxima - vida), floori(regen_orcamento))
+		if cura > 0:
+			vida += cura
+			regen_orcamento -= cura
+			_aviso("Regeneração: +%d PV" % cura, COR_AVISO_BOM)
+			_atualizar_vida()
 
 	# Escudo: conta os passos desde a última recarga (só enquanto não está cheio)
 	if escudo_max > 0 and escudo_cargas < escudo_max:
@@ -1292,15 +1373,25 @@ func _aplicar_efeito_armadilha(tipo: int) -> void:
 		TipoCasa.ESPINHOS:
 			_receber_dano(_dano_do_nivel(), "fisico", "Espinhos")
 		TipoCasa.FOGO:
-			_receber_dano(int(_dano_do_nivel() * MULT_FOGO), "fogo", "Fogo")
+			_receber_dano(_dano_fogo(), "fogo", "Fogo")
 		TipoCasa.VENENO:
 			_envenenar()
 		TipoCasa.GELO:
 			_congelar()
 
 
+# Dano bruto do fogo e do veneno: o maior entre a conta do nível e uma % da vida máxima.
+# Assim, quem empilha vida máxima continua sentindo o perigo.
+func _dano_fogo() -> int:
+	return maxi(int(_dano_do_nivel() * MULT_FOGO), roundi(vida_maxima * FOGO_PISO))
+
+
+func _dano_veneno_base() -> int:
+	return maxi(maxi(int(_dano_do_nivel() * VENENO_FRACAO), roundi(vida_maxima * VENENO_PISO)), 1)
+
+
 func _envenenar() -> void:
-	var base := maxi(int(_dano_do_nivel() * VENENO_FRACAO), 1)
+	var base := _dano_veneno_base()
 	# A resistência também encurta a duração
 	var turnos := maxi(ceili(VENENO_TURNOS * (1.0 - resist_veneno)), 1)
 	veneno_dano = maxi(veneno_dano, base)
@@ -1332,7 +1423,7 @@ func _congelar() -> void:
 
 
 func _cair_no_alcapao() -> void:
-	var recuo := mini(maxi(RECUO_ALCAPAO - reducao_queda, 0), posicao_atual)
+	var recuo := mini(maxi(RECUO_ALCAPAO - reducao_queda, 1), posicao_atual)
 	if recuo <= 0:
 		_aviso("Você se segurou na corda e não caiu!", COR_AVISO_BOM)
 		return
@@ -1376,8 +1467,7 @@ func _fim_de_jogo() -> void:
 	timer_dica.stop()
 
 	# O ouro da partida vai para o seu "banco" permanente (ouro dos baús + bônus por nível)
-	var ouro_nivel := roundi((nivel - 1) * OURO_POR_NIVEL_FINAL * (1.0 + bonus_ouro))
-	var ouro_total := ouro_run + ouro_nivel
+	var ouro_total := _calcular_ouro_total()
 	Salvamento.registrar_run(nivel, ouro_total)
 
 	# Um instante para o jogador ver o golpe final

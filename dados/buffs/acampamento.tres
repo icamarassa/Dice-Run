@@ -1,6 +1,6 @@
-[gd_resource type="Resource" script_class="Buff" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="Buff" format=3 uid="uid://bdgq7tjdxr380"]
 
-[ext_resource type="Script" path="res://scripts/buff.gd" id="1_buff"]
+[ext_resource type="Script" uid="uid://bojuqkqv6tqib" path="res://scripts/buff.gd" id="1_buff"]
 
 [resource]
 script = ExtResource("1_buff")
@@ -9,4 +9,4 @@ raridade = "Rara"
 descricao = "Descansar ao subir de nível cura mais"
 id_efeito = "descanso"
 valor = 2
-unico = false
+unico = true
