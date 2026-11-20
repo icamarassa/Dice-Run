@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="ClasseJogador" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/classe_jogador.gd" id="1_classe"]
+
+[resource]
+script = ExtResource("1_classe")
+id = "cavaleiro"
+nome = "Cavaleiro"
+descricao = "Firme e resistente. Aguenta mais pancada e se recupera aos poucos."
+cor = Color(0.85, 0.3, 0.3, 1)
+vida_inicial = 14
+armadura_inicial = 2
+resist_veneno = 0.0
+resist_fogo = 0.0
+dado_inicial = 3
+rerrola_inicial = 0
+passiva = "regen"
+passiva_descricao = "Regeneração: +1 PV a cada 4 casas"
+id_habilidade = "postura_ferro"
+nome_habilidade = "Postura de Ferro"
+descricao_habilidade = "Bloqueia o próximo golpe sofrido."
+usos_habilidade = 1
+custo_desbloqueio = 0

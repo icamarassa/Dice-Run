@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="Melhoria" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/melhoria.gd" id="1_melhoria"]
+
+[resource]
+script = ExtResource("1_melhoria")
+id = "bom_descanso"
+nome = "Bom Descanso"
+descricao = "+1 PV ao subir de nível, por nível."
+id_efeito = "descanso_inicial"
+valor = 1.0
+nivel_max = 3
+custo_base = 45
+custo_por_nivel = 35
+classe = ""
+requisito_id = "bolsa_de_couro"
+requisito_nivel = 1

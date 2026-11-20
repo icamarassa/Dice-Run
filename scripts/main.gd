@@ -2,7 +2,9 @@ extends Node2D
 
 signal escolha_feita
 
-enum TipoCasa { NEUTRA, BUFF, DEBUFF }
+enum TipoCasa { NEUTRA, BUFF, ESPINHOS, VENENO, FOGO, ALCAPAO, GELO, BAU }
+
+const CENA_MENU := "res://scenes/menu.tscn"
 
 var total_casas := 15
 const TAMANHO_CASA := 64
@@ -18,16 +20,64 @@ const DANO_BASE := 4
 const CURA_POR_NIVEL := 0.5          # o curativo melhora 0,5 PV por nível
 
 const CASAS_PARA_REGEN := 4
-const CHANCE_DEBUFF_BASE := 0.25
-const CHANCE_DEBUFF_POR_NIVEL := 0.03
-const CHANCE_DEBUFF_MAX := 0.45
-const CHANCE_BUFF := 0.25
+
+# ---------- Ouro ----------
+const OURO_BAU_BASE := 8
+const OURO_BAU_POR_NIVEL := 3
+const OURO_POR_NIVEL_FINAL := 6      # bônus ao fim da partida, por nível alcançado
+
+# ---------- Geração do tabuleiro ----------
+# O número de casas de cada tipo é FIXO por nível (em vez de sorteado casa a casa),
+# o que evita fases impossíveis e fases fáceis demais. No nível 1: 4 perigos e 4 buffs.
+const DENSIDADE_PERIGO_BASE := 0.30
+const DENSIDADE_PERIGO_POR_NIVEL := 0.015
+const DENSIDADE_PERIGO_MAX := 0.45
+const DENSIDADE_BUFF := 0.30
+const DENSIDADE_BAU := 0.08
+
+# ---------- Armadilhas ----------
+const MULT_FOGO := 1.3               # o fogo bate mais forte que os espinhos
+const PASSAGEM_ESPINHOS := 0.35      # passando por espinhos: 35% do dano normal
+const VENENO_TURNOS := 4
+const VENENO_TURNOS_MAX := 6
+const VENENO_FRACAO := 0.3           # dano do veneno por turno = 30% do dano do nível
+const RECUO_ALCAPAO := 2
+
+# nivel_min: nível em que a armadilha aparece pela primeira vez
+# peso_ini -> peso_fim: a chance dela ser sorteada muda até o nivel_pleno
+const ARMADILHAS := {
+	TipoCasa.ESPINHOS: {"nome": "Espinhos", "sigla": "ESP", "cor": Color(0.75, 0.25, 0.25),
+		"nivel_min": 1, "nivel_pleno": 15, "peso_ini": 100.0, "peso_fim": 30.0},
+	TipoCasa.VENENO: {"nome": "Veneno", "sigla": "VEN", "cor": Color(0.55, 0.72, 0.12),
+		"nivel_min": 2, "nivel_pleno": 12, "peso_ini": 25.0, "peso_fim": 60.0},
+	TipoCasa.FOGO: {"nome": "Fogo", "sigla": "FOGO", "cor": Color(0.95, 0.5, 0.1),
+		"nivel_min": 3, "nivel_pleno": 15, "peso_ini": 20.0, "peso_fim": 55.0},
+	TipoCasa.ALCAPAO: {"nome": "Alçapão", "sigla": "QUEDA", "cor": Color(0.22, 0.22, 0.28),
+		"nivel_min": 3, "nivel_pleno": 15, "peso_ini": 15.0, "peso_fim": 30.0},
+	TipoCasa.GELO: {"nome": "Gelo", "sigla": "GELO", "cor": Color(0.45, 0.78, 0.95),
+		"nivel_min": 5, "nivel_pleno": 18, "peso_ini": 15.0, "peso_fim": 40.0},
+}
+
+# Casas que não são armadilhas nem buffs
+const CASAS_ESPECIAIS := {
+	TipoCasa.BAU: {"nome": "Baú", "sigla": "BAÚ", "cor": Color(0.85, 0.62, 0.12)},
+}
+
+# ---------- Defesa ----------
+# Armadura: quanto mais você acumula, menos ela rende (nunca chega a 100%)
+const ARMADURA_K := 4.0
+const ARMADURA_K_POR_NIVEL := 0.5
+const REDUCAO_MAX := 0.75
+const RESIST_MAX := 0.8
+
+# O dado só pode evoluir para o tamanho X a partir do nível Y
+const NIVEL_MIN_DADO := {4: 3, 6: 6, 8: 10, 10: 14, 12: 18, 20: 24}
 
 const PASTA_BUFFS := "res://dados/buffs/"
 
 # ---------- Interface ----------
 const MESA_POS := Vector2(360, 40)    # onde fica a mesa do dado
-const DICA_POS := Vector2(100, 165)
+const DICA_POS := Vector2(100, 215)
 const BARRA_POS := Vector2(100, 50)
 const BARRA_TAM := Vector2(220, 26)
 const SEGUNDOS_PARA_DICA := 7.0
@@ -35,6 +85,8 @@ const SEGUNDOS_PARA_DICA := 7.0
 const COR_AVISO := Color(1.0, 0.9, 0.4)
 const COR_AVISO_MAL := Color(1.0, 0.5, 0.45)
 const COR_AVISO_BOM := Color(0.5, 1.0, 0.6)
+const COR_OURO := Color(1.0, 0.85, 0.3)
+const COR_PLIM := Color(1.0, 0.9, 0.4)
 const DURACAO_AVISO := 2.8
 
 const COR_VIDA_BOA := Color(0.25, 0.8, 0.35)
@@ -44,7 +96,6 @@ const COR_VIDA_BAIXA := Color(0.9, 0.2, 0.2)
 const CORES := {
 	TipoCasa.NEUTRA: Color(0.319, 0.267, 0.45, 1.0),
 	TipoCasa.BUFF: Color(0.2, 0.65, 0.3),
-	TipoCasa.DEBUFF: Color(0.75, 0.2, 0.2),
 }
 
 # ---------- Raridades ----------
@@ -75,18 +126,40 @@ const COR_FRASE_FINAL := Color(0.9, 0.15, 0.15)
 
 # ---------- Estado do jogo ----------
 var dado := Dado.new()
+var classe_jogador: ClasseJogador
+var cor_marcador := Color.RED
 var nivel := 1
 var posicao_atual := 0
 var vida := VIDA_INICIAL
 var vida_maxima := VIDA_INICIAL
-var reducao_dano := 0
+var armadura := 0
+var resist_veneno := 0.0
+var resist_fogo := 0.0
 var regen_valor := 0
 var escudo_max := 0
 var escudo_cargas := 0
+var escudo_temp := 0                 # bloqueios da Postura de Ferro
+var veneno_turnos := 0
+var veneno_dano := 0
+var lentidao := 0                    # casas a menos na próxima jogada (gelo)
+var bonus_movimento := 0             # casas a mais na próxima jogada (Impulso)
+var ignora_passagem := false
+var ignora_gelo := false
+var reducao_queda := 0
+var renascimentos := 0
+var sorte := 0.0
+var bonus_descanso := 0
+var opcoes_extra := 0
+var bonus_ouro := 0.0
+var ouro_run := 0
+var hab_usos := 0
+var hab_usos_max := 0
+var hab_forca := 0
 var passos_totais := 0
 var passos_para_escudo := 0
 var tipos_casas: Array[int] = []
 var todos_buffs: Array[Buff] = []
+var unicos_pegos: Array[String] = []
 var ocupado := false
 var jogo_terminou := false
 var escolha_ativa := false
@@ -95,6 +168,7 @@ var buffs_pegos := 0
 # ---------- Nós criados por código ----------
 var overlay_atual: ColorRect
 var dado_fisico: DadoFisico
+var botao_habilidade: Button
 var dica_rolar: Label
 var painel_status: PanelContainer
 var label_status: Label
@@ -117,6 +191,7 @@ var tween_barra: Tween
 
 func _ready() -> void:
 	randomize()
+	Salvamento.carregar()
 	_esconder_nos_antigos()
 	_organizar_interface()
 	_criar_barras()
@@ -126,6 +201,8 @@ func _ready() -> void:
 	_criar_dica()
 
 	_carregar_buffs()
+	_aplicar_classe_e_melhorias()
+	_criar_botao_habilidade()
 	_montar_nivel()
 	botao_rolar.pressed.connect(_on_botao_rolar_pressed)
 
@@ -138,6 +215,117 @@ func _ready() -> void:
 	dado_fisico.habilitado = true
 	_pulsar_botao(true)
 	_mostrar_dica()
+
+
+# F11 alterna tela cheia
+func _input(event: InputEvent) -> void:
+	var tecla := event as InputEventKey
+	if tecla and tecla.pressed and not tecla.echo and tecla.keycode == KEY_F11:
+		Salvamento.tela_cheia = not Salvamento.tela_cheia
+		Salvamento.aplicar_opcoes()
+		Salvamento.salvar()
+
+
+# ======================================================
+#  CLASSE E MELHORIAS PERMANENTES
+# ======================================================
+
+# Junta tudo que o jogador começa tendo: classe + melhorias compradas no menu
+func _aplicar_classe_e_melhorias() -> void:
+	var classe := Salvamento.classe(Salvamento.classe_atual)
+	if classe == null and not Salvamento.todas_classes().is_empty():
+		classe = Salvamento.todas_classes()[0]
+	classe_jogador = classe
+	var id := classe.id if classe else ""
+
+	var vida_base := VIDA_INICIAL
+	if classe:
+		vida_base = classe.vida_inicial
+		armadura = classe.armadura_inicial
+		resist_veneno = classe.resist_veneno
+		resist_fogo = classe.resist_fogo
+		dado.lados = classe.dado_inicial
+		dado.rerrola_ate = classe.rerrola_inicial
+		cor_marcador = classe.cor
+		hab_usos_max = classe.usos_habilidade
+		match classe.passiva:
+			"regen":
+				regen_valor += 1
+			"pes_leves":
+				ignora_passagem = true
+			"sorte":
+				sorte += 0.15
+			"gelo":
+				ignora_gelo = true
+
+	vida_maxima = vida_base + int(Salvamento.efeito_total("vida_inicial", id))
+	vida = vida_maxima
+	armadura += int(Salvamento.efeito_total("armadura_inicial", id))
+
+	var elemental := Salvamento.efeito_total("resist_elemental_inicial", id) / 100.0
+	resist_veneno = minf(resist_veneno + Salvamento.efeito_total("resist_veneno_inicial", id) / 100.0 + elemental, RESIST_MAX)
+	resist_fogo = minf(resist_fogo + Salvamento.efeito_total("resist_fogo_inicial", id) / 100.0 + elemental, RESIST_MAX)
+
+	dado.rerrola_ate += int(Salvamento.efeito_total("rerrola_inicial", id))
+	sorte += Salvamento.efeito_total("sorte_inicial", id) / 100.0
+	bonus_descanso += int(Salvamento.efeito_total("descanso_inicial", id))
+	opcoes_extra += int(Salvamento.efeito_total("opcoes_extra_inicial", id))
+	bonus_ouro = Salvamento.efeito_total("bonus_ouro", id) / 100.0
+	hab_usos_max += int(Salvamento.efeito_total("habilidade_usos", id))
+	hab_forca = int(Salvamento.efeito_total("habilidade_forca", id))
+	hab_usos = hab_usos_max
+
+	marcador.color = cor_marcador
+
+
+# ======================================================
+#  HABILIDADE ATIVA
+# ======================================================
+
+func _criar_botao_habilidade() -> void:
+	botao_habilidade = Button.new()
+	botao_habilidade.custom_minimum_size = Vector2(190, 44)
+	botao_habilidade.size = Vector2(190, 44)
+	botao_habilidade.position = Vector2(100, 165)
+	botao_habilidade.focus_mode = Control.FOCUS_NONE
+	Estilo.botao_secundario(botao_habilidade, 18)
+	botao_habilidade.pressed.connect(_usar_habilidade)
+	botao_habilidade.visible = classe_jogador != null
+	if classe_jogador:
+		botao_habilidade.tooltip_text = classe_jogador.descricao_habilidade
+	$UI.add_child(botao_habilidade)
+
+
+func _atualizar_botao_habilidade() -> void:
+	if botao_habilidade == null or classe_jogador == null:
+		return
+	botao_habilidade.text = "%s (%d)" % [classe_jogador.nome_habilidade, hab_usos]
+	botao_habilidade.disabled = ocupado or jogo_terminou or escolha_ativa or hab_usos <= 0
+
+
+func _usar_habilidade() -> void:
+	if classe_jogador == null or ocupado or jogo_terminou or escolha_ativa or hab_usos <= 0:
+		return
+	hab_usos -= 1
+
+	match classe_jogador.id_habilidade:
+		"postura_ferro":
+			escudo_temp += 1 + hab_forca
+			_aviso("Postura de Ferro: os próximos %d golpes serão bloqueados!" % escudo_temp, COR_AVISO_BOM)
+		"impulso":
+			bonus_movimento += 2 + hab_forca
+			_aviso("Impulso! Sua próxima jogada anda +%d casas." % bonus_movimento, COR_AVISO_BOM)
+		"prece":
+			var porcentagem := 0.4 + 0.15 * hab_forca
+			var cura := maxi(int(vida_maxima * porcentagem), 1)
+			vida = mini(vida + cura, vida_maxima)
+			veneno_turnos = 0
+			veneno_dano = 0
+			lentidao = 0
+			_aviso("Prece: +%d PV, e você se purificou." % cura, COR_AVISO_BOM)
+		_:
+			push_warning("Habilidade desconhecida: " + classe_jogador.id_habilidade)
+	_atualizar_vida()
 
 
 # ======================================================
@@ -163,26 +351,13 @@ func _organizar_interface() -> void:
 	_estilizar_botao_dourado(botao_rolar)
 
 
+# Estas três funções agora só repassam para o arquivo estilo.gd (usado também pelo menu)
 func _estilizar_botao_dourado(botao: Button, tamanho_fonte := 28) -> void:
-	botao.add_theme_font_size_override("font_size", tamanho_fonte)
-	var escuro := Color(0.12, 0.08, 0.02)
-	for nome_cor in ["font_color", "font_hover_color", "font_pressed_color", "font_disabled_color"]:
-		botao.add_theme_color_override(nome_cor, escuro)
-	botao.add_theme_stylebox_override("normal", _estilo_botao(Color(0.95, 0.7, 0.15)))
-	botao.add_theme_stylebox_override("hover", _estilo_botao(Color(1.0, 0.82, 0.35)))
-	botao.add_theme_stylebox_override("pressed", _estilo_botao(Color(0.8, 0.55, 0.1)))
-	botao.add_theme_stylebox_override("disabled", _estilo_botao(Color(0.4, 0.4, 0.45)))
+	Estilo.botao_dourado(botao, tamanho_fonte)
 
 
-func _estilo_botao(cor: Color) -> StyleBoxFlat:
-	var s := StyleBoxFlat.new()
-	s.bg_color = cor
-	s.border_color = cor.lightened(0.35)
-	s.set_border_width_all(3)
-	s.set_corner_radius_all(12)
-	s.shadow_color = Color(cor, 0.4)
-	s.shadow_size = 8
-	return s
+func _novo_label(texto: String, tamanho: int, cor := Color.WHITE, quebra_linha := true) -> Label:
+	return Estilo.novo_label(texto, tamanho, cor, quebra_linha)
 
 
 func _pulsar_botao(ativo: bool) -> void:
@@ -193,18 +368,6 @@ func _pulsar_botao(ativo: bool) -> void:
 		tween_botao = botao_rolar.create_tween().set_loops()
 		tween_botao.tween_property(botao_rolar, "scale", Vector2(1.06, 1.06), 0.5).set_trans(Tween.TRANS_SINE)
 		tween_botao.tween_property(botao_rolar, "scale", Vector2.ONE, 0.5).set_trans(Tween.TRANS_SINE)
-
-
-func _novo_label(texto: String, tamanho: int, cor := Color.WHITE, quebra_linha := true) -> Label:
-	var l := Label.new()
-	l.text = texto
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	if quebra_linha:
-		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	l.add_theme_font_size_override("font_size", tamanho)
-	l.add_theme_color_override("font_color", cor)
-	return l
 
 
 # Fundo escuro cobrindo a tela. Devolve a coluna central onde colocamos o conteúdo.
@@ -299,11 +462,7 @@ func _criar_dado_fisico() -> void:
 
 func _criar_painel_status() -> void:
 	painel_status = PanelContainer.new()
-	var estilo := StyleBoxFlat.new()
-	estilo.bg_color = Color(0, 0, 0, 0.45)
-	estilo.set_corner_radius_all(10)
-	estilo.set_content_margin_all(12)
-	painel_status.add_theme_stylebox_override("panel", estilo)
+	painel_status.add_theme_stylebox_override("panel", Estilo.painel())
 
 	label_status = Label.new()
 	label_status.add_theme_font_size_override("font_size", 16)
@@ -316,17 +475,36 @@ func _criar_painel_status() -> void:
 func _atualizar_status() -> void:
 	if dado_fisico:
 		dado_fisico.lados = dado.lados
+	_atualizar_botao_habilidade()
 
-	var texto := "MODIFICADORES\n"
+	var texto := ""
+	if classe_jogador:
+		texto += "%s\n" % classe_jogador.nome.to_upper()
 	texto += "Dado: d%d\n" % dado.lados
 	texto += "Vida máxima: %d\n" % vida_maxima
-	texto += "Armadura: +%d\n" % reducao_dano
+	texto += "Armadura: %d (-%d%% físico)\n" % [armadura, roundi(_reducao_armadura() * 100.0)]
+	texto += "Resist. veneno: %d%%\n" % roundi(resist_veneno * 100.0)
+	texto += "Resist. fogo: %d%%\n" % roundi(resist_fogo * 100.0)
 	texto += "Regeneração: +%d a cada %d casas\n" % [regen_valor, CASAS_PARA_REGEN]
 	texto += "Bônus de repetição: +%d" % dado.bonus_repeticao
+	if dado.rerrola_ate > 0:
+		texto += "\nRerrola se tirar até %d" % dado.rerrola_ate
+	if sorte > 0.0:
+		texto += "\nSorte: +%d%% cartas raras" % roundi(sorte * 100.0)
+	if renascimentos > 0:
+		texto += "\nFênix: pronta"
 	if escudo_max > 0:
-		texto += "\nEscudo de Arthur: %d/%d" % [escudo_cargas, escudo_max]
+		texto += "\nEscudo: %d/%d" % [escudo_cargas, escudo_max]
 		if escudo_cargas < escudo_max:
-			texto += " (recarrega em %d casas)" % (_casas_para_escudo() - passos_para_escudo)
+			texto += " (recarga: %d casas)" % (_casas_para_escudo() - passos_para_escudo)
+	if escudo_temp > 0:
+		texto += "\nPostura: %d bloqueios" % escudo_temp
+	if bonus_movimento > 0:
+		texto += "\nIMPULSO: próxima jogada +%d" % bonus_movimento
+	if veneno_turnos > 0:
+		texto += "\nENVENENADO: -%d PV por %d turnos" % [_dano_reduzido(veneno_dano, "veneno"), veneno_turnos]
+	if lentidao > 0:
+		texto += "\nCONGELADO: próxima jogada -%d" % lentidao
 	label_status.text = texto
 
 
@@ -361,6 +539,27 @@ func _aviso(texto: String, cor := COR_AVISO) -> void:
 	t.tween_callback(l.queue_free)
 
 
+# O "plim": o resultado sobe da mesa, acima do dado, e some
+func _plim(casas: int) -> void:
+	var texto := ("%d casa" if casas == 1 else "%d casas") % casas
+	if dado.teve_bonus:
+		texto += " (bônus!)"
+
+	var l := _novo_label(texto, 34, COR_PLIM, false)
+	l.custom_minimum_size = Vector2(260, 0)
+	l.add_theme_constant_override("outline_size", 8)
+	l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	var base := MESA_POS + dado_fisico.pos
+	l.position = base + Vector2(-130, -DadoFisico.RAIO - 70)
+	$UI.add_child(l)
+
+	var t := l.create_tween().set_parallel(true)
+	t.tween_property(l, "position:y", l.position.y - 40.0, 0.9) \
+		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	t.tween_property(l, "modulate:a", 0.0, 0.5).set_delay(0.5)
+	t.chain().tween_callback(l.queue_free)
+
+
 func _criar_dica() -> void:
 	dica_rolar = _novo_label("Role o dado!", 36, Color(1.0, 0.85, 0.3), false)
 	dica_rolar.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -393,6 +592,65 @@ func _on_timer_dica() -> void:
 
 
 # ======================================================
+#  DANO, ARMADURA E RESISTÊNCIAS
+# ======================================================
+
+# Armadura com retorno decrescente: 0 -> 0%, e quanto mais pontos, menos cada um rende.
+# O "K" sobe com o nível, então a armadura precisa crescer junto com o perigo.
+func _reducao_armadura() -> float:
+	var k := ARMADURA_K + ARMADURA_K_POR_NIVEL * nivel
+	return minf(float(armadura) / (float(armadura) + k), REDUCAO_MAX)
+
+
+func _dano_reduzido(base: int, elemento: String) -> int:
+	var reducao := 0.0
+	match elemento:
+		"fisico":
+			reducao = _reducao_armadura()
+		"veneno":
+			reducao = resist_veneno
+		"fogo":
+			reducao = resist_fogo
+	return maxi(roundi(base * (1.0 - reducao)), 1)
+
+
+# Aplica um dano. "bloqueavel" diz se escudos e posturas podem absorvê-lo.
+func _receber_dano(base: int, elemento: String, nome: String, bloqueavel := true, forte := true) -> void:
+	if bloqueavel and escudo_temp > 0:
+		escudo_temp -= 1
+		_aviso("A Postura de Ferro bloqueou o dano de %s!" % nome, COR_AVISO_BOM)
+		_atualizar_status()
+		return
+	if bloqueavel and escudo_cargas > 0:
+		escudo_cargas -= 1
+		_aviso("A Benção do Rei Arthur bloqueou o dano de %s!" % nome, COR_AVISO_BOM)
+		_atualizar_status()
+		return
+
+	var dano := _dano_reduzido(base, elemento)
+	vida = maxi(vida - dano, 0)
+	_aviso("%s! -%d PV" % [nome, dano], COR_AVISO_MAL)
+	_tremer(8.0 if forte else 3.0)
+	_piscar()
+	_atualizar_vida()
+
+
+# Devolve true se o jogo acabou. A Pena de Fênix salva uma vez.
+func _checar_morte() -> bool:
+	if vida <= 0 and not jogo_terminou:
+		if renascimentos > 0:
+			renascimentos -= 1
+			vida = maxi(int(vida_maxima * 0.5), 1)
+			veneno_turnos = 0
+			veneno_dano = 0
+			_aviso("A Pena de Fênix te trouxe de volta!", COR_AVISO_BOM)
+			_atualizar_vida()
+		else:
+			_fim_de_jogo()
+	return jogo_terminou
+
+
+# ======================================================
 #  BUFFS
 # ======================================================
 
@@ -412,12 +670,27 @@ func _casas_para_escudo() -> int:
 	return 10 + nivel
 
 
-# Um buff só é oferecido se fizer sentido agora (ex.: não existe dado maior que d20)
+# Um buff só é oferecido se fizer sentido agora
 func _buff_disponivel(buff: Buff) -> bool:
-	if buff.id_efeito == "mais_lados":
-		return dado.pode_evoluir(buff.valor)
-	if buff.id_efeito == "cura":
-		return vida < vida_maxima
+	if buff.unico and buff.nome in unicos_pegos:
+		return false
+
+	match buff.id_efeito:
+		"mais_lados":
+			if not dado.pode_evoluir(buff.valor):
+				return false
+			# O dado só evolui quando o nível permite
+			return nivel >= NIVEL_MIN_DADO.get(dado.proximo_lados(buff.valor), 0)
+		"cura":
+			return vida < vida_maxima
+		"antidoto":
+			return veneno_turnos > 0
+		"pes_leves":
+			return not ignora_passagem
+		"ignora_gelo":
+			return not ignora_gelo
+		"reduz_queda":
+			return reducao_queda < RECUO_ALCAPAO
 	return true
 
 
@@ -426,18 +699,37 @@ func _cura_do_buff(buff: Buff) -> int:
 	return buff.valor + int((nivel - 1) * CURA_POR_NIVEL)
 
 
+# Descrições montadas na hora, para sempre mostrarem os números reais
 func _descricao_do_buff(buff: Buff) -> String:
 	match buff.id_efeito:
 		"mais_lados":
 			return "Seu dado evolui:\nd%d → d%d" % [dado.lados, dado.proximo_lados(buff.valor)]
 		"cura":
 			return "Cura %d PV" % _cura_do_buff(buff)
+		"reduz_dano":
+			return "Armadura +%d\n(reduz dano físico)" % buff.valor
+		"resist_veneno":
+			return "Resistência a veneno +%d%%" % buff.valor
+		"resist_fogo":
+			return "Resistência a fogo +%d%%" % buff.valor
+		"resist_elemental":
+			return "Resistência a veneno e fogo +%d%%" % buff.valor
+		"antidoto":
+			return "Remove o veneno e cura %d PV" % buff.valor
+		"sorte":
+			return "+%d%% de chance de cartas Raras ou melhores" % buff.valor
+		"descanso":
+			return "Ao subir de nível, você se cura +%d PV a mais" % buff.valor
 	return buff.descricao
 
 
 func _peso_raridade(raridade: String) -> float:
 	var progresso := clampf(float(nivel - 1) / float(NIVEL_TETO - 1), 0.0, 1.0)
-	return lerpf(PESOS_INICIAIS[raridade], PESOS_NIVEL_MAX[raridade], progresso)
+	var peso := lerpf(PESOS_INICIAIS[raridade], PESOS_NIVEL_MAX[raridade], progresso)
+	# A sorte aumenta a chance de tudo que não é Comum
+	if raridade != "Comum":
+		peso *= 1.0 + sorte
+	return peso
 
 
 func _sortear_raridade() -> String:
@@ -477,12 +769,14 @@ func _sortear_opcoes(quantidade := 3) -> Array[Buff]:
 
 
 func _escolher_buff() -> void:
-	var opcoes := _sortear_opcoes()
+	# Máximo de 4 cards para caberem na tela
+	var opcoes := _sortear_opcoes(mini(3 + opcoes_extra, 4))
 	if opcoes.is_empty():
 		_aviso("Nenhum buff disponível em dados/buffs", COR_AVISO_MAL)
 		return
 
 	escolha_ativa = true
+	_atualizar_botao_habilidade()
 	var coluna := _criar_overlay(0.82)
 	coluna.add_child(_novo_label("Escolha uma melhoria", 40, Color.WHITE, false))
 
@@ -525,7 +819,10 @@ func _criar_card(buff: Buff) -> Button:
 	caixa.add_theme_constant_override("separation", 14)
 	card.add_child(caixa)
 
-	caixa.add_child(_novo_label(info["nome"].to_upper(), 16, cor))
+	var etiqueta: String = info["nome"].to_upper()
+	if buff.unico:
+		etiqueta += " • ÚNICO"
+	caixa.add_child(_novo_label(etiqueta, 16, cor))
 	caixa.add_child(_novo_label(buff.nome, 26))
 	caixa.add_child(_novo_label(_descricao_do_buff(buff), 18, Color(0.85, 0.85, 0.9)))
 
@@ -543,10 +840,6 @@ func _criar_card(buff: Buff) -> Button:
 
 
 func _estilo_card(cor: Color, destacado: bool, raridade: String) -> StyleBoxFlat:
-	var s := StyleBoxFlat.new()
-	s.bg_color = Color(0.09, 0.09, 0.13).lerp(cor, 0.28 if destacado else 0.14)
-	s.border_color = cor
-
 	var espessura := 3
 	match raridade:
 		"Rara":
@@ -555,14 +848,9 @@ func _estilo_card(cor: Color, destacado: bool, raridade: String) -> StyleBoxFlat
 			espessura = 5
 		"Lendaria":
 			espessura = 6
-	s.set_border_width_all(espessura)
-	s.set_corner_radius_all(16)
-
 	# Épica e Lendária têm um brilho maior ao redor
 	var brilho_forte := raridade == "Epica" or raridade == "Lendaria"
-	s.shadow_color = Color(cor, 0.55 if destacado else 0.3)
-	s.shadow_size = 24 if brilho_forte else 10
-	return s
+	return Estilo.estilo_card(cor, destacado, espessura, 24 if brilho_forte else 10)
 
 
 func _on_buff_escolhido(buff: Buff) -> void:
@@ -582,16 +870,45 @@ func _on_buff_escolhido(buff: Buff) -> void:
 
 func _aplicar_buff(buff: Buff) -> void:
 	buffs_pegos += 1
+	if buff.unico:
+		unicos_pegos.append(buff.nome)
+
 	match buff.id_efeito:
 		"mais_lados":
 			dado.evoluir(buff.valor)
 		"bonus_repetido":
 			dado.bonus_repeticao += buff.valor
+		"rerrola":
+			dado.rerrola_ate += buff.valor
 		"cura":
-			var cura := _cura_do_buff(buff)
-			vida = mini(vida + cura, vida_maxima)
+			vida = mini(vida + _cura_do_buff(buff), vida_maxima)
 		"reduz_dano":
-			reducao_dano += buff.valor
+			armadura += buff.valor
+		"resist_veneno":
+			resist_veneno = minf(resist_veneno + buff.valor / 100.0, RESIST_MAX)
+		"resist_fogo":
+			resist_fogo = minf(resist_fogo + buff.valor / 100.0, RESIST_MAX)
+		"resist_elemental":
+			resist_veneno = minf(resist_veneno + buff.valor / 100.0, RESIST_MAX)
+			resist_fogo = minf(resist_fogo + buff.valor / 100.0, RESIST_MAX)
+		"antidoto":
+			veneno_turnos = 0
+			veneno_dano = 0
+			vida = mini(vida + buff.valor, vida_maxima)
+		"pes_leves":
+			ignora_passagem = true
+		"ignora_gelo":
+			ignora_gelo = true
+		"reduz_queda":
+			reducao_queda += buff.valor
+		"fenix":
+			renascimentos += buff.valor
+		"sorte":
+			sorte = minf(sorte + buff.valor / 100.0, 1.5)
+		"descanso":
+			bonus_descanso += buff.valor
+		"mais_opcoes":
+			opcoes_extra += buff.valor
 		"low_regen":
 			regen_valor += buff.valor
 		"low_health":
@@ -615,6 +932,7 @@ func _montar_nivel() -> void:
 
 	tipos_casas.clear()
 	posicao_atual = 0
+	hab_usos = hab_usos_max      # a habilidade recarrega a cada nível
 
 	_criar_tabuleiro()
 	marcador.position = _posicao_do_marcador(0)
@@ -622,32 +940,137 @@ func _montar_nivel() -> void:
 	_atualizar_vida()
 
 
+func _cor_da_casa(tipo: int) -> Color:
+	if ARMADILHAS.has(tipo):
+		return ARMADILHAS[tipo]["cor"]
+	if CASAS_ESPECIAIS.has(tipo):
+		return CASAS_ESPECIAIS[tipo]["cor"]
+	return CORES[tipo]
+
+
 func _criar_tabuleiro() -> void:
+	tipos_casas = _gerar_tipos()
+
 	for i in total_casas:
-		# Primeira e última casas sempre neutras
-		var tipo: int = TipoCasa.NEUTRA
-		if i != 0 and i != total_casas - 1:
-			tipo = _sortear_tipo()
-		tipos_casas.append(tipo)
+		var tipo := tipos_casas[i]
 
 		var casa := ColorRect.new()
 		casa.size = Vector2(TAMANHO_CASA, TAMANHO_CASA)
 		casa.position = ORIGEM + Vector2(i * (TAMANHO_CASA + ESPACO), 0)
-		casa.color = CORES[tipo]
+		casa.color = _cor_da_casa(tipo)
 		tabuleiro.add_child(casa)
 
+		# Texto no centro da casa para diferenciar os tipos
+		var sigla := ""
+		var tamanho_fonte := 14
+		if ARMADILHAS.has(tipo):
+			sigla = ARMADILHAS[tipo]["sigla"]
+		elif CASAS_ESPECIAIS.has(tipo):
+			sigla = CASAS_ESPECIAIS[tipo]["sigla"]
+		elif tipo == TipoCasa.BUFF:
+			sigla = "+"
+			tamanho_fonte = 32
+		if sigla != "":
+			var l := _novo_label(sigla, tamanho_fonte, Color(1, 1, 1, 0.9), false)
+			l.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+			l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			casa.add_child(l)
 
-func _sortear_tipo() -> int:
-	var chance_debuff := minf(
-		CHANCE_DEBUFF_BASE + CHANCE_DEBUFF_POR_NIVEL * (nivel - 1),
-		CHANCE_DEBUFF_MAX
+
+func _densidade_perigo() -> float:
+	return minf(
+		DENSIDADE_PERIGO_BASE + DENSIDADE_PERIGO_POR_NIVEL * (nivel - 1),
+		DENSIDADE_PERIGO_MAX
 	)
-	var sorteio := randf()
-	if sorteio < CHANCE_BUFF:
-		return TipoCasa.BUFF
-	elif sorteio < CHANCE_BUFF + chance_debuff:
-		return TipoCasa.DEBUFF
-	return TipoCasa.NEUTRA
+
+
+# Monta a lista de tipos das casas com quantidades fixas (e não sorteando casa a casa)
+func _gerar_tipos() -> Array[int]:
+	var n := total_casas
+	var interior := n - 2          # a primeira e a última casas são sempre neutras
+
+	var tipos: Array[int] = []
+	tipos.resize(n)
+	tipos.fill(TipoCasa.NEUTRA)
+
+	var indices: Array = range(1, n - 1)
+	indices.shuffle()
+
+	var qtd_buffs := roundi(interior * DENSIDADE_BUFF)
+	var qtd_baus := roundi(interior * DENSIDADE_BAU)
+	var qtd_perigos := roundi(interior * _densidade_perigo())
+	if nivel >= 3:
+		qtd_perigos = maxi(qtd_perigos + randi_range(-1, 1), 0)
+
+	# 1) Um buff garantido logo no começo do tabuleiro
+	if qtd_buffs > 0:
+		var cedo := randi_range(2, mini(5, n - 2))
+		tipos[cedo] = TipoCasa.BUFF
+		indices.erase(cedo)
+		qtd_buffs -= 1
+
+	# 2) Perigos espalhados. Até o nível 4 nunca ficam colados um no outro.
+	var folga := 2 if nivel < 5 else 1
+	var colocados: Array[int] = []
+	for i in indices.duplicate():
+		if colocados.size() >= qtd_perigos:
+			break
+		if i == 1:
+			continue        # a casa logo depois da largada é sempre segura
+		var longe := true
+		for c in colocados:
+			if absi(i - c) < folga:
+				longe = false
+				break
+		if longe:
+			colocados.append(i)
+
+	for i in colocados:
+		tipos[i] = _sortear_armadilha()
+		indices.erase(i)
+
+	# 3) Baús
+	for i in indices.duplicate():
+		if qtd_baus <= 0:
+			break
+		tipos[i] = TipoCasa.BAU
+		indices.erase(i)
+		qtd_baus -= 1
+
+	# 4) O resto dos buffs
+	for i in indices:
+		if qtd_buffs <= 0:
+			break
+		tipos[i] = TipoCasa.BUFF
+		qtd_buffs -= 1
+
+	return tipos
+
+
+# A chance de cada armadilha muda com o nível (veja ARMADILHAS)
+func _peso_armadilha(tipo: int) -> float:
+	var info: Dictionary = ARMADILHAS[tipo]
+	if nivel < info["nivel_min"]:
+		return 0.0
+	var faixa := float(info["nivel_pleno"] - info["nivel_min"])
+	var progresso := clampf(float(nivel - info["nivel_min"]) / maxf(faixa, 1.0), 0.0, 1.0)
+	return lerpf(info["peso_ini"], info["peso_fim"], progresso)
+
+
+func _sortear_armadilha() -> int:
+	var total := 0.0
+	for tipo in ARMADILHAS:
+		total += _peso_armadilha(tipo)
+
+	var sorteio := randf() * total
+	for tipo in ARMADILHAS:
+		var peso := _peso_armadilha(tipo)
+		if peso <= 0.0:
+			continue
+		sorteio -= peso
+		if sorteio <= 0.0:
+			return tipo
+	return TipoCasa.ESPINHOS
 
 
 func _posicao_do_marcador(indice: int) -> Vector2:
@@ -694,9 +1117,10 @@ func _transicao_de_nivel() -> void:
 	await t.finished
 
 	# Troca de nível enquanto a tela está preta
+	var descanso := 2 + bonus_descanso
 	nivel += 1
 	total_casas += 2
-	vida = mini(vida + 2, vida_maxima)
+	vida = mini(vida + descanso, vida_maxima)
 	_montar_nivel()
 
 	titulo.text = "NÍVEL %d" % nivel
@@ -714,7 +1138,7 @@ func _transicao_de_nivel() -> void:
 	await t.finished
 
 	tela.queue_free()
-	_aviso("Você descansou: +2 PV", COR_AVISO_BOM)
+	_aviso("Você descansou: +%d PV" % descanso, COR_AVISO_BOM)
 
 
 # ======================================================
@@ -735,6 +1159,7 @@ func _on_dado_lancado() -> void:
 	ocupado = true
 	botao_rolar.disabled = true
 	dado_fisico.habilitado = false
+	_atualizar_botao_habilidade()
 	_pulsar_botao(false)
 	_esconder_dica()
 	timer_dica.stop()
@@ -744,10 +1169,18 @@ func _on_dado_lancado() -> void:
 	dado_fisico.definir_resultado(dado.ultimo, dado.teve_bonus)
 	await dado_fisico.pousou
 
-	if dado.teve_bonus:
-		_aviso("Você tirou %d! (bônus de repetição)" % resultado)
-	else:
-		_aviso("Você tirou %d!" % resultado)
+	# Gelo: a jogada anda menos casas (mas sempre pelo menos 1)
+	if lentidao > 0:
+		resultado = maxi(resultado - lentidao, 1)
+		_aviso("O gelo te atrasou: -%d casa" % lentidao, COR_AVISO_MAL)
+		lentidao = 0
+	# Impulso: a jogada anda mais casas
+	if bonus_movimento > 0:
+		resultado += bonus_movimento
+		_aviso("Impulso: +%d casas!" % bonus_movimento, COR_AVISO_BOM)
+		bonus_movimento = 0
+	_atualizar_status()
+	_plim(resultado)
 
 	# Anda casa por casa
 	for i in resultado:
@@ -757,12 +1190,24 @@ func _on_dado_lancado() -> void:
 		await _mover_um_passo(posicao_atual)
 		_contar_passo()
 
-	await _resolver_casa()
+		# Casas em que você só PASSA (não é a última do movimento)
+		if i < resultado - 1:
+			_passar_pela_casa()
+			if _checar_morte():
+				break
+
+	# Fim do movimento: resolve a casa onde parou, depois o veneno do turno
+	if not _checar_morte():
+		await _resolver_casa()
+	if not _checar_morte():
+		_aplicar_veneno()
+		_checar_morte()
 
 	if not jogo_terminou:
 		ocupado = false
 		botao_rolar.disabled = false
 		dado_fisico.habilitado = true
+		_atualizar_botao_habilidade()
 		_pulsar_botao(true)
 		timer_dica.start()
 
@@ -801,25 +1246,26 @@ func _contar_passo() -> void:
 		_atualizar_status()
 
 
+# Espinhos machucam um pouco até quem só passa. Escudos não gastam carga com isso.
+func _passar_pela_casa() -> void:
+	if tipos_casas[posicao_atual] == TipoCasa.ESPINHOS and not ignora_passagem:
+		var dano := maxi(int(_dano_do_nivel() * PASSAGEM_ESPINHOS), 1)
+		_receber_dano(dano, "fisico", "Espinhos (de passagem)", false, false)
+
+
 func _resolver_casa() -> void:
 	var tipo := tipos_casas[posicao_atual]
 
-	if tipo == TipoCasa.DEBUFF:
-		if escudo_cargas > 0:
-			escudo_cargas -= 1
-			_aviso("A Benção do Rei Arthur bloqueou o dano!", COR_AVISO_BOM)
-			_atualizar_status()
-		else:
-			var dano := maxi(_dano_do_nivel() - reducao_dano, 1)
-			vida = maxi(vida - dano, 0)
-			_aviso("Casa de debuff! -%d PV" % dano, COR_AVISO_MAL)
-			_tremer()
-			_piscar()
-			_atualizar_vida()
+	if tipo == TipoCasa.ALCAPAO:
+		await _cair_no_alcapao()
+	else:
+		_aplicar_efeito_armadilha(tipo)
 
-	if vida <= 0:
-		_fim_de_jogo()
+	if _checar_morte():
 		return
+
+	if tipo == TipoCasa.BAU:
+		_abrir_bau()
 
 	if tipo == TipoCasa.BUFF:
 		await _escolher_buff()
@@ -828,22 +1274,111 @@ func _resolver_casa() -> void:
 		await _transicao_de_nivel()
 
 
+# ---------- Baú ----------
+
+func _abrir_bau() -> void:
+	var base := OURO_BAU_BASE + nivel * OURO_BAU_POR_NIVEL
+	var ouro := roundi(base * randf_range(0.8, 1.3) * (1.0 + bonus_ouro))
+	ouro_run += ouro
+	_aviso("Baú! +%d ouro" % ouro, COR_OURO)
+	_atualizar_vida()
+
+
+# ---------- Efeitos das armadilhas ----------
+
+# Efeito de pousar em uma armadilha (o alçapão é tratado à parte)
+func _aplicar_efeito_armadilha(tipo: int) -> void:
+	match tipo:
+		TipoCasa.ESPINHOS:
+			_receber_dano(_dano_do_nivel(), "fisico", "Espinhos")
+		TipoCasa.FOGO:
+			_receber_dano(int(_dano_do_nivel() * MULT_FOGO), "fogo", "Fogo")
+		TipoCasa.VENENO:
+			_envenenar()
+		TipoCasa.GELO:
+			_congelar()
+
+
+func _envenenar() -> void:
+	var base := maxi(int(_dano_do_nivel() * VENENO_FRACAO), 1)
+	# A resistência também encurta a duração
+	var turnos := maxi(ceili(VENENO_TURNOS * (1.0 - resist_veneno)), 1)
+	veneno_dano = maxi(veneno_dano, base)
+	veneno_turnos = mini(veneno_turnos + turnos, VENENO_TURNOS_MAX)
+	_aviso("Envenenado! -%d PV por turno (%d turnos)" % [_dano_reduzido(veneno_dano, "veneno"), veneno_turnos], COR_AVISO_MAL)
+	_atualizar_status()
+
+
+# Acontece no fim de cada turno. Escudos não protegem contra veneno.
+func _aplicar_veneno() -> void:
+	if veneno_turnos <= 0:
+		return
+	veneno_turnos -= 1
+	_receber_dano(veneno_dano, "veneno", "Veneno", false, false)
+	if veneno_turnos <= 0:
+		veneno_dano = 0
+		if vida > 0:
+			_aviso("O veneno passou.", COR_AVISO_BOM)
+		_atualizar_status()
+
+
+func _congelar() -> void:
+	if ignora_gelo:
+		_aviso("Seus calçados térmicos te protegeram do gelo.", COR_AVISO_BOM)
+		return
+	lentidao = mini(lentidao + 1, 2)
+	_aviso("Gelo! Sua próxima jogada anda %d casa a menos." % lentidao, COR_AVISO_MAL)
+	_atualizar_status()
+
+
+func _cair_no_alcapao() -> void:
+	var recuo := mini(maxi(RECUO_ALCAPAO - reducao_queda, 0), posicao_atual)
+	if recuo <= 0:
+		_aviso("Você se segurou na corda e não caiu!", COR_AVISO_BOM)
+		return
+	_aviso("Alçapão! Você cai %d casas." % recuo, COR_AVISO_MAL)
+	_tremer(5.0)
+
+	posicao_atual -= recuo
+	var destino := _posicao_do_marcador(posicao_atual)
+	_atualizar_camera(true, destino.x)
+	var t := create_tween()
+	t.tween_property(marcador, "position", destino, 0.5) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	await t.finished
+
+	# Se caiu em cima de outra armadilha, ela também te pega
+	# (buffs, baús e outro alçapão não contam)
+	var tipo := tipos_casas[posicao_atual]
+	if tipo != TipoCasa.ALCAPAO and ARMADILHAS.has(tipo):
+		_aviso("Você caiu em cima de: %s!" % ARMADILHAS[tipo]["nome"], COR_AVISO_MAL)
+		_aplicar_efeito_armadilha(tipo)
+
+
 # ======================================================
 #  VIDA E FIM DE JOGO
 # ======================================================
 
 func _atualizar_vida() -> void:
-	label_vida.text = "Nível %d   |   Vida: %d/%d" % [nivel, vida, vida_maxima]
+	label_vida.text = "Nível %d   |   Vida: %d/%d   |   Ouro: %d" % [nivel, vida, vida_maxima, ouro_run]
 	_atualizar_barras()
 	_atualizar_status()
 
 
 func _fim_de_jogo() -> void:
+	if jogo_terminou:
+		return
 	jogo_terminou = true
 	botao_rolar.disabled = true
 	dado_fisico.habilitado = false
+	_atualizar_botao_habilidade()
 	_pulsar_botao(false)
 	timer_dica.stop()
+
+	# O ouro da partida vai para o seu "banco" permanente (ouro dos baús + bônus por nível)
+	var ouro_nivel := roundi((nivel - 1) * OURO_POR_NIVEL_FINAL * (1.0 + bonus_ouro))
+	var ouro_total := ouro_run + ouro_nivel
+	Salvamento.registrar_run(nivel, ouro_total)
 
 	# Um instante para o jogador ver o golpe final
 	await get_tree().create_timer(0.7).timeout
@@ -852,6 +1387,7 @@ func _fim_de_jogo() -> void:
 	var titulo := _novo_label("VOCÊ MORREU", 64, Color(0.9, 0.2, 0.2), false)
 	var detalhe := _novo_label("Você chegou ao nível %d" % nivel, 26, Color(0.85, 0.85, 0.9), false)
 	var estatisticas := _novo_label("Buffs obtidos: %d" % buffs_pegos, 22, Color(0.85, 0.85, 0.9), false)
+	var recompensa := _novo_label("Ouro ganho: +%d   (total: %d)" % [ouro_total, Salvamento.ouro], 28, COR_OURO, false)
 
 	var botao := Button.new()
 	botao.text = "JOGAR DE NOVO"
@@ -861,19 +1397,28 @@ func _fim_de_jogo() -> void:
 	_estilizar_botao_dourado(botao, 28)
 	botao.pressed.connect(_reiniciar)
 
+	var botao_menu := Button.new()
+	botao_menu.text = "MENU"
+	botao_menu.custom_minimum_size = Vector2(300, 54)
+	botao_menu.focus_mode = Control.FOCUS_NONE
+	Estilo.botao_secundario(botao_menu, 22)
+	botao_menu.pressed.connect(_ir_para_menu)
+
 	coluna.add_child(titulo)
 	coluna.add_child(detalhe)
-	coluna.add_child(botao)
 	coluna.add_child(estatisticas)
+	coluna.add_child(recompensa)
+	coluna.add_child(botao)
+	coluna.add_child(botao_menu)
 
 	# Tudo aparece em sequência
 	var i := 0
-	for item in [titulo, detalhe, botao, estatisticas]:
+	for item in [titulo, detalhe, estatisticas, recompensa, botao, botao_menu]:
 		item.modulate.a = 0.0
-		item.create_tween().tween_property(item, "modulate:a", 1.0, 0.4).set_delay(0.25 * i)
+		item.create_tween().tween_property(item, "modulate:a", 1.0, 0.4).set_delay(0.2 * i)
 		i += 1
 
-	# O botão pulsa, igual ao ROLAR
+	# O botão principal pulsa, igual ao ROLAR
 	var pulso := botao.create_tween().set_loops()
 	pulso.tween_property(botao, "scale", Vector2(1.06, 1.06), 0.5).set_trans(Tween.TRANS_SINE)
 	pulso.tween_property(botao, "scale", Vector2.ONE, 0.5).set_trans(Tween.TRANS_SINE)
@@ -881,6 +1426,10 @@ func _fim_de_jogo() -> void:
 
 func _reiniciar() -> void:
 	get_tree().reload_current_scene()
+
+
+func _ir_para_menu() -> void:
+	get_tree().change_scene_to_file(CENA_MENU)
 
 
 # ======================================================
@@ -915,7 +1464,8 @@ func _tremer(intensidade := 8.0) -> void:
 	tween.tween_property(camera, "offset", Vector2.ZERO, 0.03)
 
 
+# O marcador pisca em branco e volta à cor da classe
 func _piscar() -> void:
 	marcador.color = Color.WHITE
 	var tween := create_tween()
-	tween.tween_property(marcador, "color", Color.RED, 0.25)
+	tween.tween_property(marcador, "color", cor_marcador, 0.25)

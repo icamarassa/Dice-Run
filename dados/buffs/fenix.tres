@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="Buff" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/buff.gd" id="1_buff"]
+
+[resource]
+script = ExtResource("1_buff")
+nome = "Pena de Fênix"
+raridade = "Lendaria"
+descricao = "Renasce uma vez com metade da vida"
+id_efeito = "fenix"
+valor = 1
+unico = true

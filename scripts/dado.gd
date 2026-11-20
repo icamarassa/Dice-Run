@@ -5,12 +5,16 @@ const ESCADA: Array[int] = [3, 4, 6, 8, 10, 12, 20]
 
 var lados: int = 3
 var bonus_repeticao: int = 0
+var rerrola_ate: int = 0     # se tirar até este número, rola de novo (uma vez)
 var ultimo: int = 0
 var teve_bonus: bool = false
 
 
 func rolar() -> int:
 	var resultado := randi_range(1, lados)
+	if resultado <= rerrola_ate:
+		resultado = randi_range(1, lados)
+
 	teve_bonus = (resultado == ultimo and bonus_repeticao > 0)
 	var total := resultado
 	if teve_bonus:

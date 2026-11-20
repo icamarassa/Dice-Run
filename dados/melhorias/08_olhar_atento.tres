@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="Melhoria" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/melhoria.gd" id="1_melhoria"]
+
+[resource]
+script = ExtResource("1_melhoria")
+id = "olhar_atento"
+nome = "Olhar Atento"
+descricao = "+1 carta em todas as escolhas de melhoria."
+id_efeito = "opcoes_extra_inicial"
+valor = 1.0
+nivel_max = 1
+custo_base = 200
+custo_por_nivel = 0
+classe = ""
+requisito_id = "amuleto_da_sorte"
+requisito_nivel = 2

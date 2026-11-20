@@ -6,3 +6,5 @@ extends Resource
 @export var descricao: String
 @export var id_efeito: String
 @export var valor: int = 1
+# Buff único: depois de pego, não aparece mais nas escolhas
+@export var unico: bool = false

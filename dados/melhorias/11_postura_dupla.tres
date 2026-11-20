@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="Melhoria" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/melhoria.gd" id="1_melhoria"]
+
+[resource]
+script = ExtResource("1_melhoria")
+id = "postura_dupla"
+nome = "Postura Dupla"
+descricao = "+1 uso da Postura de Ferro por nível."
+id_efeito = "habilidade_usos"
+valor = 1.0
+nivel_max = 2
+custo_base = 60
+custo_por_nivel = 60
+classe = "cavaleiro"
+requisito_id = ""
+requisito_nivel = 1

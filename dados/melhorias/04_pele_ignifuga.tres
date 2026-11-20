@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="Melhoria" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/melhoria.gd" id="1_melhoria"]
+
+[resource]
+script = ExtResource("1_melhoria")
+id = "pele_ignifuga"
+nome = "Pele Ignífuga"
+descricao = "+10% de resistência a fogo inicial por nível."
+id_efeito = "resist_fogo_inicial"
+valor = 10.0
+nivel_max = 3
+custo_base = 30
+custo_por_nivel = 25
+classe = ""
+requisito_id = ""
+requisito_nivel = 1

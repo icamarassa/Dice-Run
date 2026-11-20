@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="Melhoria" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/melhoria.gd" id="1_melhoria"]
+
+[resource]
+script = ExtResource("1_melhoria")
+id = "vitalidade"
+nome = "Vitalidade"
+descricao = "+1 de vida inicial por nível."
+id_efeito = "vida_inicial"
+valor = 1.0
+nivel_max = 5
+custo_base = 20
+custo_por_nivel = 15
+classe = ""
+requisito_id = ""
+requisito_nivel = 1

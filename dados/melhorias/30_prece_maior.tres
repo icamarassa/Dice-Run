@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="Melhoria" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/melhoria.gd" id="1_melhoria"]
+
+[resource]
+script = ExtResource("1_melhoria")
+id = "prece_maior"
+nome = "Prece Maior"
+descricao = "A Prece cura +15% da vida máxima."
+id_efeito = "habilidade_forca"
+valor = 1.0
+nivel_max = 3
+custo_base = 45
+custo_por_nivel = 35
+classe = "sacerdote"
+requisito_id = ""
+requisito_nivel = 1

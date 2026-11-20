@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="Melhoria" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/melhoria.gd" id="1_melhoria"]
+
+[resource]
+script = ExtResource("1_melhoria")
+id = "segunda_prece"
+nome = "Segunda Prece"
+descricao = "+1 uso da Prece por nível."
+id_efeito = "habilidade_usos"
+valor = 1.0
+nivel_max = 2
+custo_base = 70
+custo_por_nivel = 70
+classe = "sacerdote"
+requisito_id = "prece_maior"
+requisito_nivel = 1

@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="Melhoria" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/melhoria.gd" id="1_melhoria"]
+
+[resource]
+script = ExtResource("1_melhoria")
+id = "armadura_de_placas"
+nome = "Armadura de Placas"
+descricao = "+1 de armadura inicial por nível."
+id_efeito = "armadura_inicial"
+valor = 1.0
+nivel_max = 3
+custo_base = 45
+custo_por_nivel = 35
+classe = "cavaleiro"
+requisito_id = ""
+requisito_nivel = 1

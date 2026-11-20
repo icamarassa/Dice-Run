@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="Melhoria" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/melhoria.gd" id="1_melhoria"]
+
+[resource]
+script = ExtResource("1_melhoria")
+id = "bolsa_de_couro"
+nome = "Bolsa de Couro"
+descricao = "+15% de ouro ganho por nível."
+id_efeito = "bonus_ouro"
+valor = 15.0
+nivel_max = 5
+custo_base = 25
+custo_por_nivel = 20
+classe = ""
+requisito_id = ""
+requisito_nivel = 1

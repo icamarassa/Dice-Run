@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="Melhoria" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/melhoria.gd" id="1_melhoria"]
+
+[resource]
+script = ExtResource("1_melhoria")
+id = "dado_afiado"
+nome = "Dado Afiado"
+descricao = "Rerrola o dado também se tirar 2."
+id_efeito = "rerrola_inicial"
+valor = 1.0
+nivel_max = 1
+custo_base = 150
+custo_por_nivel = 0
+classe = "ladino"
+requisito_id = "folego_extra"
+requisito_nivel = 1

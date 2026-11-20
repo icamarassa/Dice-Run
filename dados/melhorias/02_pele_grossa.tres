@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="Melhoria" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/melhoria.gd" id="1_melhoria"]
+
+[resource]
+script = ExtResource("1_melhoria")
+id = "pele_grossa"
+nome = "Pele Grossa"
+descricao = "+1 de armadura inicial por nível."
+id_efeito = "armadura_inicial"
+valor = 1.0
+nivel_max = 3
+custo_base = 40
+custo_por_nivel = 30
+classe = ""
+requisito_id = ""
+requisito_nivel = 1

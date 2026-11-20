@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="Buff" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/buff.gd" id="1_buff"]
+
+[resource]
+script = ExtResource("1_buff")
+nome = "Corda de Escalada"
+raridade = "Comum"
+descricao = "Alçapões te derrubam 1 casa a menos"
+id_efeito = "reduz_queda"
+valor = 1
+unico = false

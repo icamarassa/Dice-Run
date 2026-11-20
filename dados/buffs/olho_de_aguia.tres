@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="Buff" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/buff.gd" id="1_buff"]
+
+[resource]
+script = ExtResource("1_buff")
+nome = "Olho de Águia"
+raridade = "Rara"
+descricao = "Você vê 1 opção a mais nas escolhas"
+id_efeito = "mais_opcoes"
+valor = 1
+unico = true

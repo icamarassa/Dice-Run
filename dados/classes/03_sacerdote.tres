@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="ClasseJogador" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/classe_jogador.gd" id="1_classe"]
+
+[resource]
+script = ExtResource("1_classe")
+id = "sacerdote"
+nome = "Sacerdote"
+descricao = "Protegido contra veneno e fogo. Cura a si mesmo e atrai cartas raras."
+cor = Color(0.95, 0.85, 0.4, 1)
+vida_inicial = 10
+armadura_inicial = 0
+resist_veneno = 0.3
+resist_fogo = 0.3
+dado_inicial = 3
+rerrola_inicial = 0
+passiva = "sorte"
+passiva_descricao = "Abençoado: +15% de chance de cartas raras"
+id_habilidade = "prece"
+nome_habilidade = "Prece"
+descricao_habilidade = "Cura 40% da vida máxima e remove veneno e gelo."
+usos_habilidade = 1
+custo_desbloqueio = 180

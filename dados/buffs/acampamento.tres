@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="Buff" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/buff.gd" id="1_buff"]
+
+[resource]
+script = ExtResource("1_buff")
+nome = "Acampamento"
+raridade = "Rara"
+descricao = "Descansar ao subir de nível cura mais"
+id_efeito = "descanso"
+valor = 2
+unico = false
