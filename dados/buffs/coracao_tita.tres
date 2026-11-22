@@ -6,7 +6,7 @@
 script = ExtResource("1_m7xys")
 nome = "Coração de Titã"
 raridade = "Lendaria"
-descricao = "+5 de PV máximo"
+descricao = "+4 de PV máximo"
 id_efeito = "low_health"
-valor = 5
+valor = 4
 metadata/_custom_type_script = "uid://bojuqkqv6tqib"

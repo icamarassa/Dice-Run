@@ -1,12 +1,11 @@
-[gd_resource type="Resource" script_class="Buff" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="Buff" format=3 uid="uid://cnjck50f5qx7a"]
 
-[ext_resource type="Script" path="res://scripts/buff.gd" id="1_buff"]
+[ext_resource type="Script" uid="uid://bojuqkqv6tqib" path="res://scripts/buff.gd" id="1_buff"]
 
 [resource]
 script = ExtResource("1_buff")
 nome = "Trevo de Quatro Folhas"
 raridade = "Rara"
-descricao = "Mais chance de cartas raras"
+descricao = "Mais 15% de chance de cartas raras"
 id_efeito = "sorte"
-valor = 25
-unico = false
+valor = 15

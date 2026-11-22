@@ -1,12 +1,11 @@
-[gd_resource type="Resource" script_class="Buff" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="Buff" format=3 uid="uid://c7w3q7jrmlm4c"]
 
-[ext_resource type="Script" path="res://scripts/buff.gd" id="1_buff"]
+[ext_resource type="Script" uid="uid://bojuqkqv6tqib" path="res://scripts/buff.gd" id="1_buff"]
 
 [resource]
 script = ExtResource("1_buff")
 nome = "Vigor"
 raridade = "Rara"
-descricao = "+3 de PV máximo"
+descricao = "+2 de PV máximo"
 id_efeito = "low_health"
-valor = 3
-unico = false
+valor = 2

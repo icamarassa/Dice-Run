@@ -49,8 +49,6 @@ var lados := 3:
 			_esmagar()
 		queue_redraw()
 
-var tempo_bonus := 0.0
-
 var habilitado := false:
 	set(valor):
 		habilitado = valor
@@ -109,6 +107,17 @@ func lancar_automatico() -> void:
 	_lancar(direcao)
 
 
+# Joga o dado DE NOVO (usado quando um buff manda rerrolar). Não dispara o sinal "lancado".
+func rejogar(face: int, com_bonus: bool) -> void:
+	if estado != Estado.REPOUSO:
+		return
+	var direcao := Vector2.from_angle(randf_range(-0.5, 0.5)) * randf_range(350.0, 600.0)
+	if pos.x > AREA.get_center().x:
+		direcao.x = -direcao.x
+	_lancar(direcao, false)
+	definir_resultado(face, com_bonus)
+
+
 # ======================================================
 #  MOUSE
 # ======================================================
@@ -140,7 +149,7 @@ func _soltar() -> void:
 	_lancar(direcao.limit_length(VEL_MAX))
 
 
-func _lancar(velocidade: Vector2) -> void:
+func _lancar(velocidade: Vector2, emitir := true) -> void:
 	bonus = false
 	vel = velocidade
 	vz = randf_range(380.0, 520.0)
@@ -148,7 +157,8 @@ func _lancar(velocidade: Vector2) -> void:
 	quicadas = 0
 	estado = Estado.VOANDO
 	# O main reage a este sinal sorteando o número e chamando definir_resultado()
-	lancado.emit()
+	if emitir:
+		lancado.emit()
 
 
 # ======================================================
@@ -157,8 +167,6 @@ func _lancar(velocidade: Vector2) -> void:
 
 func _process(delta: float) -> void:
 	tempo += delta
-	if tempo_bonus > 0.0:
-		tempo_bonus -= delta
 	match estado:
 		Estado.REPOUSO:
 			_processar_repouso(delta)
@@ -231,13 +239,7 @@ func _assentar() -> void:
 	estado = Estado.ASSENTANDO
 	vz = 0.0
 	texto = str(face_final)
-
-	if bonus:
-		tempo_bonus = 1.5
-
-	som_toc.pitch_scale = 0.75
-	som_toc.play()
-
+	_tocar_som()
 	_esmagar()
 
 
@@ -329,11 +331,7 @@ func _draw() -> void:
 
 	# Sombra no chão: quanto mais alto o dado, mais fraca e maior ela fica
 	var fraca := 1.0 / (1.0 + z / 80.0)
-	draw_set_transform(
-		pos + Vector2(0, RAIO * 0.75) + Vector2(z * 0.15, 0),
-		0.0,
-		Vector2(1.0, 0.35)
-	)
+	draw_set_transform(pos + Vector2(0, RAIO * 0.75), 0.0, Vector2(1.0, 0.35))
 	draw_circle(Vector2.ZERO, RAIO * (1.0 + z / 400.0), Color(0, 0, 0, 0.4 * fraca))
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
@@ -383,27 +381,5 @@ func _draw() -> void:
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 	# Bônus de repetição: um anel dourado em volta do dado quando ele para
-	if tempo_bonus > 0.0:
-		var raio_pulso := RAIO * (1.3 + sin(tempo * 8.0) * 0.12)
-		
-		var alpha := tempo_bonus / 1.5
-
-		draw_circle(
-			centro,
-			RAIO * 1.8,
-			Color(1.0, 0.85, 0.35, alpha * 0.15)
-		)
-
-
-		var progresso := 1.0 - (tempo_bonus / 1.5)
-
-		draw_arc(
-			centro,
-			RAIO * (1.2 + progresso * 1.2),
-			0.0,
-			TAU,
-			48,
-			Color(1.0, 0.85, 0.35, 1.0 - progresso),
-			4.0,
-			true
-		)
+	if bonus and estado == Estado.REPOUSO:
+		draw_arc(centro, RAIO * 1.3, 0.0, TAU, 48, COR_BONUS, 4.0, true)

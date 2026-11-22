@@ -1,6 +1,6 @@
-[gd_resource type="Resource" script_class="Melhoria" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="Melhoria" format=3 uid="uid://0e4jfcl2tfg1"]
 
-[ext_resource type="Script" path="res://scripts/melhoria.gd" id="1_melhoria"]
+[ext_resource type="Script" uid="uid://b8txldymwfl1a" path="res://scripts/melhoria.gd" id="1_melhoria"]
 
 [resource]
 script = ExtResource("1_melhoria")
@@ -8,10 +8,7 @@ id = "bencao_elemental"
 nome = "Bênção Elemental"
 descricao = "+10% de resistência a veneno e fogo iniciais."
 id_efeito = "resist_elemental_inicial"
-valor = 10.0
-nivel_max = 3
+valor = 5.0
 custo_base = 40
 custo_por_nivel = 30
 classe = "sacerdote"
-requisito_id = ""
-requisito_nivel = 1

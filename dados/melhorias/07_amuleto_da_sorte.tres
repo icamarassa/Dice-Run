@@ -1,6 +1,6 @@
-[gd_resource type="Resource" script_class="Melhoria" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="Melhoria" format=3 uid="uid://dgqqeh3b074nr"]
 
-[ext_resource type="Script" path="res://scripts/melhoria.gd" id="1_melhoria"]
+[ext_resource type="Script" uid="uid://b8txldymwfl1a" path="res://scripts/melhoria.gd" id="1_melhoria"]
 
 [resource]
 script = ExtResource("1_melhoria")
@@ -8,10 +8,8 @@ id = "amuleto_da_sorte"
 nome = "Amuleto da Sorte"
 descricao = "+10% de chance de cartas raras por nível."
 id_efeito = "sorte_inicial"
-valor = 10.0
-nivel_max = 3
+valor = 8.0
 custo_base = 50
 custo_por_nivel = 40
-classe = ""
 requisito_id = "vitalidade"
 requisito_nivel = 2

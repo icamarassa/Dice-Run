@@ -4,4 +4,9 @@
 
 [resource]
 script = ExtResource("1_r58qk")
+nome = "Armadura de Aço"
+raridade = "Epica"
+descricao = "Adiciona +5 de armadura"
+id_efeito = "reduz_dano"
+valor = 5
 metadata/_custom_type_script = "uid://bojuqkqv6tqib"

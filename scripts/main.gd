@@ -155,6 +155,7 @@ var veneno_dano := 0
 var lentidao := 0                    # casas a menos na próxima jogada (gelo)
 var bonus_movimento := 0             # casas a mais na próxima jogada (Impulso)
 var ignora_passagem := false
+var esquiva := 0.0                   # chance de evitar dano físico e de fogo (Ladino)
 var ignora_gelo := false
 var reducao_queda := 0
 var renascimentos := 0
@@ -306,15 +307,18 @@ func _aplicar_classe_e_melhorias() -> void:
 		dado.rerrola_ate = classe.rerrola_inicial
 		cor_marcador = classe.cor
 		hab_usos_max = classe.usos_habilidade
-		match classe.passiva:
-			"regen":
-				regen_valor += 1
-			"pes_leves":
-				ignora_passagem = true
-			"sorte":
-				sorte += 0.15
-			"gelo":
-				ignora_gelo = true
+		for passiva in classe.passiva.split(",", false):
+			match passiva.strip_edges():
+				"regen":
+					regen_valor += 1
+				"pes_leves":
+					ignora_passagem = true
+				"esquiva":
+					esquiva = 0.40
+				"sorte":
+					sorte += 0.05
+				"gelo":
+					ignora_gelo = true
 
 	vida_maxima = vida_base + int(Salvamento.efeito_total("vida_inicial", id))
 	vida = vida_maxima
@@ -376,7 +380,7 @@ func _usar_habilidade() -> void:
 			bonus_movimento += 2 + hab_forca
 			_aviso("Impulso! Sua próxima jogada anda +%d casas." % bonus_movimento, COR_AVISO_BOM)
 		"prece":
-			var porcentagem := 0.4 + 0.15 * hab_forca
+			var porcentagem := 0.25 + 0.10 * hab_forca
 			var cura := maxi(int(vida_maxima * porcentagem), 1)
 			vida = mini(vida + cura, vida_maxima)
 			veneno_turnos = 0
@@ -551,6 +555,8 @@ func _atualizar_status() -> void:
 		texto += "\nRerrola se tirar até %d" % dado.rerrola_ate
 	if sorte > 0.0:
 		texto += "\nSorte: +%d%% cartas raras" % roundi(sorte * 100.0)
+	if esquiva > 0.0:
+		texto += "\nEsquiva: %d%%" % roundi(esquiva * 100.0)
 	if renascimentos > 0:
 		texto += "\nFênix: pronta"
 	if escudo_max > 0:
@@ -691,6 +697,11 @@ func _receber_dano(base: int, elemento: String, nome: String, bloqueavel := true
 		escudo_cargas -= 1
 		_aviso("A Benção do Rei Arthur bloqueou o dano de %s!" % nome, COR_AVISO_BOM)
 		_atualizar_status()
+		return
+
+	# Esquiva (Ladino): como um teste de Destreza bem-sucedido, evita o golpe
+	if bloqueavel and esquiva > 0.0 and (elemento == "fisico" or elemento == "fogo") and randf() < esquiva:
+		_aviso("Você se esquivou de %s!" % nome, COR_AVISO_BOM)
 		return
 
 	var dano := _dano_reduzido(base, elemento)
@@ -1243,7 +1254,16 @@ func _on_dado_lancado() -> void:
 
 	# A LÓGICA decide o número; o dado visual só o mostra ao pousar
 	var resultado := dado.rolar()
-	dado_fisico.definir_resultado(dado.ultimo, dado.teve_bonus)
+	if dado.rerrolou:
+		# 1º lançamento: o dado cai no número ruim...
+		dado_fisico.definir_resultado(dado.face_descartada, false)
+		await dado_fisico.pousou
+		_aviso("Tirou %d... o dado rola de novo!" % dado.face_descartada, COR_AVISO)
+		await get_tree().create_timer(0.6).timeout
+		# ...e é jogado outra vez, agora com o número que vale
+		dado_fisico.rejogar(dado.ultimo, dado.teve_bonus)
+	else:
+		dado_fisico.definir_resultado(dado.ultimo, dado.teve_bonus)
 	await dado_fisico.pousou
 
 	# Gelo: a jogada anda menos casas (mas sempre pelo menos 1)

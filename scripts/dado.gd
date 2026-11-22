@@ -8,11 +8,17 @@ var bonus_repeticao: int = 0
 var rerrola_ate: int = 0     # se tirar até este número, rola de novo (uma vez)
 var ultimo: int = 0
 var teve_bonus: bool = false
+var rerrolou: bool = false   # a última jogada foi rerrolada?
+var face_descartada: int = 0 # o número ruim que foi jogado fora
 
 
 func rolar() -> int:
 	var resultado := randi_range(1, lados)
+
+	rerrolou = false
 	if resultado <= rerrola_ate:
+		rerrolou = true
+		face_descartada = resultado
 		resultado = randi_range(1, lados)
 
 	teve_bonus = (resultado == ultimo and bonus_repeticao > 0)

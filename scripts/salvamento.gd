@@ -151,14 +151,21 @@ static func custo_melhoria(m: Melhoria) -> int:
 	return m.custo_base + m.custo_por_nivel * nivel_melhoria(m.id)
 
 
+# A melhoria "pai" precisa estar no nível exigido (a árvore vem de arvore_layout.gd)
+static func requisito_cumprido(m: Melhoria) -> bool:
+	var pai := ArvoreLayout.pai(m)
+	return pai == "" or nivel_melhoria(pai) >= ArvoreLayout.nivel_pai(m)
+
+
 # Devolve "" se pode comprar; senão, o motivo
 static func motivo_bloqueio(m: Melhoria) -> String:
 	if nivel_melhoria(m.id) >= m.nivel_max:
 		return "Nível máximo"
-	if m.requisito_id != "" and nivel_melhoria(m.requisito_id) < m.requisito_nivel:
-		var req := melhoria_por_id(m.requisito_id)
-		var nome := req.nome if req else m.requisito_id
-		return "Requer %s (nível %d)" % [nome, m.requisito_nivel]
+	if not requisito_cumprido(m):
+		var pai := ArvoreLayout.pai(m)
+		var req := melhoria_por_id(pai)
+		var nome := req.nome if req else pai
+		return "Requer %s (nível %d)" % [nome, ArvoreLayout.nivel_pai(m)]
 	if ouro < custo_melhoria(m):
 		return "Ouro insuficiente"
 	return ""

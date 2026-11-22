@@ -11,6 +11,12 @@ var label_ouro: Label
 var aba_atual := ""             # "" = melhorias gerais; senão, id da classe
 var rolagem_atual: ScrollContainer
 var scroll_guardado := 0
+var arvore: ArvoreMelhorias
+var info_titulo: Label
+var info_nivel: Label
+var info_desc: Label
+var info_custo: Label
+var info_atual: Melhoria
 
 
 func _ready() -> void:
@@ -125,7 +131,7 @@ func _piscar_ouro() -> void:
 
 func _mostrar_principal() -> void:
 	var c := _limpar()
-	c.add_child(Estilo.novo_label("DICE RUN", 84, COR_OURO, false))
+	c.add_child(Estilo.novo_label("JOGO DE DADOS", 84, COR_OURO, false))
 	c.add_child(Estilo.novo_label("Role. Escolha. Sobreviva.", 26, Color(0.8, 0.8, 0.92), false))
 	c.add_child(_espaco(24))
 
@@ -228,17 +234,16 @@ func _on_classe_clicada(classe: ClasseJogador) -> void:
 
 
 # ======================================================
-#  MELHORIAS PERMANENTES
+#  MELHORIAS PERMANENTES (árvore)
 # ======================================================
 
 func _abrir_melhorias() -> void:
-	scroll_guardado = 0
 	_mostrar_melhorias()
 
 
 func _mostrar_melhorias() -> void:
 	var c := _limpar()
-	_titulo(c, "Melhorias permanentes")
+	_titulo(c, "Árvore de melhorias")
 
 	# Abas: uma geral e uma para cada classe
 	var abas := HBoxContainer.new()
@@ -249,29 +254,77 @@ func _mostrar_melhorias() -> void:
 	for classe in Salvamento.todas_classes():
 		_adicionar_aba(abas, classe.nome, classe.id)
 
-	rolagem_atual = ScrollContainer.new()
-	rolagem_atual.custom_minimum_size = Vector2(880, 370)
-	rolagem_atual.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	c.add_child(rolagem_atual)
+	# Árvore (à esquerda) e painel de detalhes (à direita)
+	var corpo := HBoxContainer.new()
+	corpo.add_theme_constant_override("separation", 16)
+	c.add_child(corpo)
 
-	var lista := VBoxContainer.new()
-	lista.add_theme_constant_override("separation", 10)
-	lista.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	rolagem_atual.add_child(lista)
+	var moldura := PanelContainer.new()
+	moldura.add_theme_stylebox_override("panel", Estilo.painel(Color(0, 0, 0, 0.35), 14, 6))
+	corpo.add_child(moldura)
 
-	var total := 0
-	for m in Salvamento.todas_melhorias():
-		if m.classe == aba_atual:
-			lista.add_child(_linha_melhoria(m))
-			total += 1
-	if total == 0:
-		lista.add_child(Estilo.novo_label("Nenhuma melhoria encontrada em res://dados/melhorias/", 20, Color(1.0, 0.5, 0.45), false))
+	var rolagem := ScrollContainer.new()
+	rolagem.custom_minimum_size = Vector2(800, 400)
+	moldura.add_child(rolagem)
 
-	rolagem_atual.set_deferred("scroll_vertical", scroll_guardado)
+	arvore = ArvoreMelhorias.new()
+	arvore.passou_o_mouse.connect(_mostrar_info)
+	arvore.compra_realizada.connect(_on_compra_realizada)
+	rolagem.add_child(arvore)
+	arvore.construir(aba_atual)
+
+	corpo.add_child(_criar_painel_info())
 
 	var voltar := _botao("VOLTAR", Vector2(240, 54), false)
 	voltar.pressed.connect(_mostrar_principal)
 	c.add_child(voltar)
+
+
+func _criar_painel_info() -> PanelContainer:
+	var painel := PanelContainer.new()
+	painel.custom_minimum_size = Vector2(290, 400)
+	painel.add_theme_stylebox_override("panel", Estilo.painel(Color(0.1, 0.08, 0.18, 0.92), 14, 18))
+
+	var caixa := VBoxContainer.new()
+	caixa.add_theme_constant_override("separation", 12)
+	painel.add_child(caixa)
+
+	info_titulo = Estilo.novo_label("Passe o mouse\nsobre um ícone", 26, Color.WHITE)
+	info_nivel = Estilo.novo_label("", 18, Color(0.7, 0.7, 0.85))
+	info_desc = Estilo.novo_label("Clique num ícone disponível para comprar. As melhorias bloqueadas se abrem quando você evolui a anterior.", 17, Color(0.82, 0.82, 0.9))
+	info_custo = Estilo.novo_label("", 20, COR_OURO)
+	for l in [info_titulo, info_nivel, info_desc, info_custo]:
+		caixa.add_child(l)
+
+	info_atual = null
+	return painel
+
+
+func _mostrar_info(m: Melhoria) -> void:
+	info_atual = m
+	var nivel := Salvamento.nivel_melhoria(m.id)
+	info_titulo.text = m.nome
+	info_nivel.text = "Nível %d / %d" % [nivel, m.nivel_max]
+	info_desc.text = m.descricao
+
+	var motivo := Salvamento.motivo_bloqueio(m)
+	if nivel >= m.nivel_max:
+		info_custo.text = "NÍVEL MÁXIMO"
+		info_custo.add_theme_color_override("font_color", COR_OURO)
+	elif not Salvamento.requisito_cumprido(m):
+		info_custo.text = motivo
+		info_custo.add_theme_color_override("font_color", Color(1.0, 0.55, 0.45))
+	elif motivo == "Ouro insuficiente":
+		info_custo.text = "Custo: %d ouro\nFaltam %d" % [Salvamento.custo_melhoria(m), Salvamento.custo_melhoria(m) - Salvamento.ouro]
+		info_custo.add_theme_color_override("font_color", Color(1.0, 0.55, 0.45))
+	else:
+		info_custo.text = "Custo: %d ouro\nClique para comprar" % Salvamento.custo_melhoria(m)
+		info_custo.add_theme_color_override("font_color", COR_OURO)
+
+
+func _on_compra_realizada(m: Melhoria) -> void:
+	label_ouro.text = "Ouro: %d" % Salvamento.ouro
+	_mostrar_info(m)
 
 
 func _adicionar_aba(abas: HBoxContainer, texto: String, id_classe: String) -> void:
@@ -289,62 +342,7 @@ func _adicionar_aba(abas: HBoxContainer, texto: String, id_classe: String) -> vo
 
 func _on_aba_clicada(id_classe: String) -> void:
 	aba_atual = id_classe
-	scroll_guardado = 0
 	_mostrar_melhorias()
-
-
-func _linha_melhoria(m: Melhoria) -> PanelContainer:
-	var nivel := Salvamento.nivel_melhoria(m.id)
-	var motivo := Salvamento.motivo_bloqueio(m)
-
-	var painel := PanelContainer.new()
-	painel.add_theme_stylebox_override("panel", Estilo.painel(Color(0.1, 0.08, 0.18, 0.92), 12, 14))
-
-	var linha := HBoxContainer.new()
-	linha.add_theme_constant_override("separation", 16)
-	painel.add_child(linha)
-
-	var textos := VBoxContainer.new()
-	textos.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	linha.add_child(textos)
-
-	var titulo := Estilo.novo_label("%s   [%d/%d]" % [m.nome, nivel, m.nivel_max], 22, Color.WHITE, false)
-	titulo.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	textos.add_child(titulo)
-
-	var descricao := Estilo.novo_label(m.descricao, 16, Color(0.75, 0.75, 0.85))
-	descricao.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	textos.add_child(descricao)
-
-	if motivo.begins_with("Requer"):
-		var req := Estilo.novo_label(motivo, 15, Color(1.0, 0.55, 0.45))
-		req.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-		textos.add_child(req)
-
-	var botao := Button.new()
-	botao.custom_minimum_size = Vector2(190, 56)
-	botao.focus_mode = Control.FOCUS_NONE
-	Estilo.botao_dourado(botao, 20)
-	if nivel >= m.nivel_max:
-		botao.text = "MÁXIMO"
-		botao.disabled = true
-	elif motivo == "":
-		botao.text = "Comprar\n%d ouro" % Salvamento.custo_melhoria(m)
-	else:
-		botao.text = "%d ouro" % Salvamento.custo_melhoria(m)
-		botao.disabled = true
-	botao.pressed.connect(_on_comprar.bind(m))
-	linha.add_child(botao)
-	return painel
-
-
-func _on_comprar(m: Melhoria) -> void:
-	if rolagem_atual:
-		scroll_guardado = rolagem_atual.scroll_vertical
-	if Salvamento.comprar_melhoria(m):
-		_mostrar_melhorias()
-	else:
-		_piscar_ouro()
 
 
 # ======================================================

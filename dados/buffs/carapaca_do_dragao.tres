@@ -6,7 +6,7 @@
 script = ExtResource("1_mhrwe")
 nome = "Carapaça do Dragão"
 raridade = "Lendaria"
-descricao = "Adicionar +8 de armadura"
+descricao = "Adiciona +7 de armadura"
 id_efeito = "reduz_dano"
-valor = 8
+valor = 7
 metadata/_custom_type_script = "uid://bojuqkqv6tqib"

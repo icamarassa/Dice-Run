@@ -1,6 +1,6 @@
-[gd_resource type="Resource" script_class="Buff" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="Buff" format=3 uid="uid://bfj4ulxrw2e4i"]
 
-[ext_resource type="Script" path="res://scripts/buff.gd" id="1_buff"]
+[ext_resource type="Script" uid="uid://bojuqkqv6tqib" path="res://scripts/buff.gd" id="1_buff"]
 
 [resource]
 script = ExtResource("1_buff")
@@ -8,5 +8,4 @@ nome = "Dado Viciado"
 raridade = "Rara"
 descricao = "Se tirar 1, o dado rola de novo"
 id_efeito = "rerrola"
-valor = 1
 unico = true
