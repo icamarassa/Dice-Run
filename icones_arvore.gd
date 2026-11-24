@@ -79,5 +79,11 @@ static func desenhar(ci: CanvasItem, tipo: String, c: Vector2, t: float, cor: Co
 			for p in [[-0.24, -0.24], [0.0, 0.0], [0.24, 0.24]]:
 				ci.draw_circle(c + Vector2(p[0], p[1]) * t, 0.09 * t, escura)
 
+		"lista":
+			for i in 3:
+				var y := -0.42 + i * 0.42
+				ci.draw_circle(c + Vector2(-0.52, y) * t, 0.08 * t, cor)
+				ci.draw_rect(Rect2(c + Vector2(-0.32, y - 0.07) * t, Vector2(0.9, 0.14) * t), cor)
+
 		_:
 			ci.draw_circle(c, 0.5 * t, cor)

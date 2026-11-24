@@ -87,9 +87,9 @@ const PASTA_BUFFS := "res://dados/buffs/"
 
 # ---------- Interface ----------
 const MESA_POS := Vector2(360, 40)    # onde fica a mesa do dado
-const DICA_POS := Vector2(100, 215)
-const BARRA_POS := Vector2(100, 50)
-const BARRA_TAM := Vector2(220, 26)
+const DICA_POS := Vector2(22, 145)
+const BARRA_POS := Vector2(74, 22)
+const BARRA_TAM := Vector2(250, 28)
 const SEGUNDOS_PARA_DICA := 7.0
 
 const COR_AVISO := Color(1.0, 0.9, 0.4)
@@ -107,6 +107,16 @@ const CORES := {
 	TipoCasa.NEUTRA: Color(0.319, 0.267, 0.45, 1.0),
 	TipoCasa.BUFF: Color(0.2, 0.65, 0.3),
 }
+
+# Nome e cor do "tema" mostrado no topo da tela, conforme o nível (depois serão os mundos)
+const TEMAS_NIVEL := [
+	{"ate": 5, "nome": "Campo de Treinamento", "cor": Color(0.6, 0.95, 0.6)},
+	{"ate": 10, "nome": "Catacumbas", "cor": Color(0.95, 0.9, 0.5)},
+	{"ate": 15, "nome": "Vulcão", "cor": Color(1.0, 0.6, 0.3)},
+	{"ate": 20, "nome": "Tundra Congelante", "cor": Color(0.6, 0.85, 1.0)},
+	{"ate": 25, "nome": "Abismo", "cor": Color(0.75, 0.5, 0.95)},
+	{"ate": 999, "nome": "Trono do Dragão", "cor": Color(0.95, 0.3, 0.3)},
+]
 
 # ---------- Raridades ----------
 const RARIDADES := {
@@ -156,6 +166,16 @@ var lentidao := 0                    # casas a menos na próxima jogada (gelo)
 var bonus_movimento := 0             # casas a mais na próxima jogada (Impulso)
 var ignora_passagem := false
 var esquiva := 0.0                   # chance de evitar dano físico e de fogo (Ladino)
+var bonus_cura := 0                  # Medicina
+var veneno_menos := 0                # Sobrevivência
+var descanso_pct_bonus := 0.0        # Dados de Vida
+var hp_a_cada_3 := 0                 # Robustez Anã
+var folego_pct := 0.0                # Retomar o Fôlego (Cavaleiro)
+var folego_usado := false
+var uncanny := 0.0                   # Esquiva Sobrenatural (Ladino)
+var uncanny_usado := false
+var meio_escudo := 0                 # próximo golpe causa metade do dano
+var meio_escudo_prece := 0           # Escudo da Fé (Sacerdote)
 var ignora_gelo := false
 var reducao_queda := 0
 var renascimentos := 0
@@ -180,7 +200,12 @@ var buffs_pegos := 0
 # ---------- Nós criados por código ----------
 var overlay_atual: ColorRect
 var dado_fisico: DadoFisico
-var botao_habilidade: Button
+var botao_habilidade: BotaoIcone
+var botao_status: BotaoIcone
+var dica_ui: PainelDica
+var label_hp: Label
+var label_nivel: Label
+var label_ouro_hud: Label
 var dica_rolar: Label
 var painel_status: PanelContainer
 var label_status: Label
@@ -207,6 +232,7 @@ func _ready() -> void:
 	_esconder_nos_antigos()
 	_organizar_interface()
 	_criar_barras()
+	_criar_hud()
 	_criar_painel_status()
 	_criar_dado_fisico()
 	_criar_avisos()
@@ -236,6 +262,11 @@ func _input(event: InputEvent) -> void:
 		Salvamento.tela_cheia = not Salvamento.tela_cheia
 		Salvamento.aplicar_opcoes()
 		Salvamento.salvar()
+
+	# TAB mostra ou esconde a lista de modificadores
+	if tecla and tecla.pressed and not tecla.echo and tecla.keycode == KEY_TAB and not get_tree().paused:
+		_alternar_status()
+		get_viewport().set_input_as_handled()
 
 	# ESC abre o menu de pausa
 	if event.is_action_pressed("ui_cancel") and not get_tree().paused and not jogo_terminou:
@@ -339,6 +370,17 @@ func _aplicar_classe_e_melhorias() -> void:
 	hab_forca = int(Salvamento.efeito_total("habilidade_forca", id))
 	hab_usos = hab_usos_max
 
+	# Melhorias permanentes inspiradas em D&D
+	bonus_cura = int(Salvamento.efeito_total("bonus_cura", id))
+	veneno_menos = int(Salvamento.efeito_total("veneno_menos_turnos", id))
+	reducao_queda = mini(reducao_queda + int(Salvamento.efeito_total("queda_menos", id)), RECUO_ALCAPAO - 1)
+	descanso_pct_bonus = Salvamento.efeito_total("descanso_pct_extra", id) / 100.0
+	hp_a_cada_3 = int(Salvamento.efeito_total("vida_a_cada_3_niveis", id))
+	folego_pct = Salvamento.efeito_total("segundo_folego", id) / 100.0
+	esquiva = minf(esquiva + Salvamento.efeito_total("evasao", id) / 100.0, 0.6)
+	uncanny = Salvamento.efeito_total("esquiva_sobrenatural", id) / 100.0
+	meio_escudo_prece = int(Salvamento.efeito_total("escudo_da_fe", id))
+
 	marcador.color = cor_marcador
 
 
@@ -347,24 +389,68 @@ func _aplicar_classe_e_melhorias() -> void:
 # ======================================================
 
 func _criar_botao_habilidade() -> void:
-	botao_habilidade = Button.new()
-	botao_habilidade.custom_minimum_size = Vector2(190, 44)
-	botao_habilidade.size = Vector2(190, 44)
-	botao_habilidade.position = Vector2(100, 165)
-	botao_habilidade.focus_mode = Control.FOCUS_NONE
-	Estilo.botao_secundario(botao_habilidade, 18)
-	botao_habilidade.pressed.connect(_usar_habilidade)
-	botao_habilidade.visible = classe_jogador != null
+	botao_habilidade = BotaoIcone.new()
+
+	# Cada habilidade tem seu ícone
+	var tipo_icone := "estrela"
+	var cor_icone := Color(1.0, 0.85, 0.3)
 	if classe_jogador:
-		botao_habilidade.tooltip_text = classe_jogador.descricao_habilidade
+		match classe_jogador.id_habilidade:
+			"postura_ferro":
+				tipo_icone = "escudo"
+				cor_icone = Color(0.6, 0.72, 0.92)
+			"impulso":
+				tipo_icone = "seta"
+				cor_icone = Color(0.5, 0.95, 0.6)
+			"prece":
+				tipo_icone = "cruz"
+				cor_icone = Color(1.0, 0.9, 0.5)
+
+	botao_habilidade.configurar(tipo_icone, cor_icone, 60.0)
+	botao_habilidade.position = Vector2(222, 70)
+	botao_habilidade.pressionado.connect(_usar_habilidade)
+	botao_habilidade.dica_pedida.connect(_on_dica_habilidade)
+	botao_habilidade.visible = classe_jogador != null
 	$UI.add_child(botao_habilidade)
 
 
 func _atualizar_botao_habilidade() -> void:
 	if botao_habilidade == null or classe_jogador == null:
 		return
-	botao_habilidade.text = "%s (%d)" % [classe_jogador.nome_habilidade, hab_usos]
-	botao_habilidade.disabled = ocupado or jogo_terminou or escolha_ativa or hab_usos <= 0
+	var bloqueada := ocupado or jogo_terminou or escolha_ativa
+	botao_habilidade.atualizar(bloqueada or hab_usos <= 0, hab_usos, hab_usos > 0 and not bloqueada)
+
+
+# Descrição da habilidade com os números já ajustados pelas melhorias
+func _descricao_habilidade() -> String:
+	match classe_jogador.id_habilidade:
+		"postura_ferro":
+			return "Bloqueia os próximos %d golpes sofridos." % (1 + hab_forca)
+		"impulso":
+			return "Sua próxima jogada anda +%d casas." % (2 + hab_forca)
+		"prece":
+			var texto := "Cura %d%% da vida máxima e remove veneno e gelo." % roundi((0.25 + 0.10 * hab_forca) * 100.0)
+			if meio_escudo_prece > 0:
+				texto += " O próximo golpe causa metade do dano."
+			return texto
+	return classe_jogador.descricao_habilidade
+
+
+func _on_dica_habilidade(mostrar: bool, no: Control) -> void:
+	if not mostrar:
+		dica_ui.esconder()
+		return
+	dica_ui.mostrar(classe_jogador.nome_habilidade, _descricao_habilidade(),
+		"Usos neste nível: %d / %d" % [hab_usos, hab_usos_max],
+		botao_habilidade.cor, COR_OURO, no.get_global_rect())
+
+
+func _on_dica_status(mostrar: bool, no: Control) -> void:
+	if not mostrar:
+		dica_ui.esconder()
+		return
+	dica_ui.mostrar("Modificadores", "Atributos, resistências e efeitos ativos da sua partida.",
+		"Clique (ou Tab) para abrir a lista", Color.WHITE, COR_OURO, no.get_global_rect())
 
 
 func _usar_habilidade() -> void:
@@ -387,6 +473,9 @@ func _usar_habilidade() -> void:
 			veneno_dano = 0
 			lentidao = 0
 			_aviso("Prece: +%d PV, e você se purificou." % cura, COR_AVISO_BOM)
+			if meio_escudo_prece > 0:
+				meio_escudo += meio_escudo_prece
+				_aviso("Escudo da Fé: o próximo golpe causará metade do dano.", COR_AVISO_BOM)
 		_:
 			push_warning("Habilidade desconhecida: " + classe_jogador.id_habilidade)
 	_atualizar_vida()
@@ -399,18 +488,16 @@ func _usar_habilidade() -> void:
 # O LabelResultado e o BotaoReiniciar foram substituídos por avisos e pela tela de morte.
 # Você pode apagá-los da cena; enquanto isso, só escondemos.
 func _esconder_nos_antigos() -> void:
-	for nome in ["LabelResultado", "BotaoReiniciar"]:
+	for nome in ["LabelResultado", "BotaoReiniciar", "LabelVida"]:
 		if $UI.has_node(nome):
 			($UI.get_node(nome) as CanvasItem).hide()
 
 
 func _organizar_interface() -> void:
-	label_vida.position = Vector2(100, 20)
-
 	botao_rolar.text = "ROLAR"
 	botao_rolar.custom_minimum_size = Vector2(190, 60)
 	botao_rolar.size = Vector2(190, 60)
-	botao_rolar.position = Vector2(100, 95)
+	botao_rolar.position = Vector2(22, 70)
 	botao_rolar.pivot_offset = Vector2(95, 30)
 	_estilizar_botao_dourado(botao_rolar)
 
@@ -526,14 +613,85 @@ func _criar_dado_fisico() -> void:
 
 func _criar_painel_status() -> void:
 	painel_status = PanelContainer.new()
-	painel_status.add_theme_stylebox_override("panel", Estilo.painel())
+	painel_status.add_theme_stylebox_override("panel", Estilo.painel(Color(0.04, 0.03, 0.09, 0.95), 12, 14))
 
 	label_status = Label.new()
 	label_status.add_theme_font_size_override("font_size", 16)
 	painel_status.add_child(label_status)
 
-	painel_status.position = Vector2(850, 20)
+	# Fica escondido: abre ao clicar no ícone de lista (ou com a tecla Tab)
+	painel_status.position = Vector2(get_viewport_rect().size.x - 350.0, 128)
+	painel_status.visible = false
 	$UI.add_child(painel_status)
+
+
+func _alternar_status() -> void:
+	painel_status.visible = not painel_status.visible
+	if painel_status.visible:
+		_atualizar_status()
+
+
+# Barra de vida com coração (canto superior esquerdo), nível no centro, ouro à direita
+func _criar_hud() -> void:
+	dica_ui = PainelDica.new()
+	$UI.add_child(dica_ui)
+
+	var coracao := BotaoIcone.new()
+	coracao.configurar("coracao", Color(0.95, 0.35, 0.42), 44.0)
+	coracao.position = Vector2(22, 14)
+	$UI.add_child(coracao)
+	coracao.mouse_filter = Control.MOUSE_FILTER_IGNORE      # só enfeite
+
+	label_hp = _novo_label("", 18, Color.WHITE, false)
+	label_hp.add_theme_constant_override("outline_size", 5)
+	label_hp.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	label_hp.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label_hp.position = BARRA_POS
+	label_hp.custom_minimum_size = BARRA_TAM
+	label_hp.size = BARRA_TAM
+	$UI.add_child(label_hp)
+
+	# Nível (centro), com cor e nome do tema
+	label_nivel = _novo_label("", 26, Color.WHITE, false)
+	label_nivel.add_theme_constant_override("outline_size", 6)
+	label_nivel.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	label_nivel.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+	label_nivel.offset_top = 4.0
+	label_nivel.offset_bottom = 38.0
+	$UI.add_child(label_nivel)
+
+	# Moedas (canto superior direito)
+	var caixa_ouro := HBoxContainer.new()
+	caixa_ouro.add_theme_constant_override("separation", 8)
+	caixa_ouro.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT, Control.PRESET_MODE_MINSIZE, 22)
+	caixa_ouro.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	$UI.add_child(caixa_ouro)
+
+	var moeda := BotaoIcone.new()
+	moeda.configurar("moeda", Color(1.0, 0.85, 0.3), 38.0)
+	caixa_ouro.add_child(moeda)
+	moeda.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	label_ouro_hud = _novo_label("0", 26, COR_OURO, false)
+	label_ouro_hud.add_theme_constant_override("outline_size", 5)
+	label_ouro_hud.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	label_ouro_hud.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	caixa_ouro.add_child(label_ouro_hud)
+
+	# Ícone que abre a lista de modificadores
+	botao_status = BotaoIcone.new()
+	botao_status.configurar("lista", Color(0.75, 0.8, 1.0), 46.0)
+	botao_status.position = Vector2(get_viewport_rect().size.x - 22.0 - 46.0, 66)
+	botao_status.pressionado.connect(_alternar_status)
+	botao_status.dica_pedida.connect(_on_dica_status)
+	$UI.add_child(botao_status)
+
+
+func _tema_do_nivel() -> Dictionary:
+	for tema in TEMAS_NIVEL:
+		if nivel <= tema["ate"]:
+			return tema
+	return TEMAS_NIVEL[TEMAS_NIVEL.size() - 1]
 
 
 func _atualizar_status() -> void:
@@ -557,6 +715,8 @@ func _atualizar_status() -> void:
 		texto += "\nSorte: +%d%% cartas raras" % roundi(sorte * 100.0)
 	if esquiva > 0.0:
 		texto += "\nEsquiva: %d%%" % roundi(esquiva * 100.0)
+	if meio_escudo > 0:
+		texto += "\nProteção divina: próximo golpe pela metade"
 	if renascimentos > 0:
 		texto += "\nFênix: pronta"
 	if escudo_max > 0:
@@ -705,11 +865,28 @@ func _receber_dano(base: int, elemento: String, nome: String, bloqueavel := true
 		return
 
 	var dano := _dano_reduzido(base, elemento)
+	if bloqueavel and meio_escudo > 0:
+		meio_escudo -= 1
+		dano = maxi(roundi(dano * 0.5), 1)
+	if bloqueavel and uncanny > 0.0 and not uncanny_usado and (elemento == "fisico" or elemento == "fogo"):
+		uncanny_usado = true
+		dano = maxi(roundi(dano * (1.0 - uncanny)), 1)
 	vida = maxi(vida - dano, 0)
 	_aviso("%s! -%d PV" % [nome, dano], COR_AVISO_MAL)
 	_tremer(8.0 if forte else 3.0)
 	_piscar()
 	_atualizar_vida()
+	_checar_folego()
+
+
+# Retomar o Fôlego (Cavaleiro): uma vez por nível, ao ficar com pouca vida, você se cura
+func _checar_folego() -> void:
+	if folego_pct > 0.0 and not folego_usado and vida > 0 and vida <= vida_maxima * 0.4:
+		folego_usado = true
+		var cura := maxi(roundi(vida_maxima * folego_pct), 1)
+		vida = mini(vida + cura, vida_maxima)
+		_aviso("Retomar o Fôlego: +%d PV!" % cura, COR_AVISO_BOM)
+		_atualizar_vida()
 
 
 # Devolve true se o jogo acabou. A Pena de Fênix salva uma vez.
@@ -775,7 +952,7 @@ func _buff_disponivel(buff: Buff) -> bool:
 
 # O curativo acompanha o nível, para não ficar inútil nas fases altas
 func _cura_do_buff(buff: Buff) -> int:
-	return buff.valor + int((nivel - 1) * CURA_POR_NIVEL)
+	return buff.valor + int((nivel - 1) * CURA_POR_NIVEL) + bonus_cura
 
 
 # Descrições montadas na hora, para sempre mostrarem os números reais
@@ -1013,6 +1190,8 @@ func _montar_nivel() -> void:
 	posicao_atual = 0
 	hab_usos = hab_usos_max      # a habilidade recarrega a cada nível
 	regen_orcamento = REGEN_BASE_POR_NIVEL + REGEN_EXTRA_POR_NIVEL * nivel
+	folego_usado = false
+	uncanny_usado = false
 
 	_criar_tabuleiro()
 	marcador.position = _posicao_do_marcador(0)
@@ -1205,9 +1384,12 @@ func _transicao_de_nivel() -> void:
 
 	# Troca de nível enquanto a tela está preta
 	# O descanso é uma porcentagem da vida máxima: assim vida máxima importa de verdade
-	var descanso := maxi(2, roundi(vida_maxima * DESCANSO_PCT)) + bonus_descanso
+	var descanso := maxi(2, roundi(vida_maxima * (DESCANSO_PCT + descanso_pct_bonus))) + bonus_descanso
 	nivel += 1
 	total_casas += 2
+	if hp_a_cada_3 > 0 and nivel % 3 == 0:
+		vida_maxima += hp_a_cada_3     # Robustez Anã
+		vida += hp_a_cada_3
 	vida = mini(vida + descanso, vida_maxima)
 	_montar_nivel()
 
@@ -1413,7 +1595,7 @@ func _dano_veneno_base() -> int:
 func _envenenar() -> void:
 	var base := _dano_veneno_base()
 	# A resistência também encurta a duração
-	var turnos := maxi(ceili(VENENO_TURNOS * (1.0 - resist_veneno)), 1)
+	var turnos := maxi(ceili(VENENO_TURNOS * (1.0 - resist_veneno)) - veneno_menos, 1)
 	veneno_dano = maxi(veneno_dano, base)
 	veneno_turnos = mini(veneno_turnos + turnos, VENENO_TURNOS_MAX)
 	_aviso("Envenenado! -%d PV por turno (%d turnos)" % [_dano_reduzido(veneno_dano, "veneno"), veneno_turnos], COR_AVISO_MAL)
@@ -1471,7 +1653,11 @@ func _cair_no_alcapao() -> void:
 # ======================================================
 
 func _atualizar_vida() -> void:
-	label_vida.text = "Nível %d   |   Vida: %d/%d   |   Ouro: %d" % [nivel, vida, vida_maxima, ouro_run]
+	label_hp.text = "%d / %d" % [vida, vida_maxima]
+	var tema := _tema_do_nivel()
+	label_nivel.text = "NÍVEL %d  -  %s" % [nivel, tema["nome"]]
+	label_nivel.add_theme_color_override("font_color", tema["cor"])
+	label_ouro_hud.text = str(ouro_run)
 	_atualizar_barras()
 	_atualizar_status()
 

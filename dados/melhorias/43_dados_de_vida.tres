@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="Melhoria" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/melhoria.gd" id="1_melhoria"]
+
+[resource]
+script = ExtResource("1_melhoria")
+id = "dados_de_vida"
+nome = "Dados de Vida"
+descricao = "Ao subir de nível, recupera +5% da vida máxima a mais, por nível."
+id_efeito = "descanso_pct_extra"
+valor = 5.0
+nivel_max = 2
+custo_base = 80
+custo_por_nivel = 60
+classe = ""
+requisito_id = "medicina"
+requisito_nivel = 2

@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="Melhoria" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/melhoria.gd" id="1_melhoria"]
+
+[resource]
+script = ExtResource("1_melhoria")
+id = "retomar_o_folego"
+nome = "Retomar o Fôlego"
+descricao = "Uma vez por nível, ao ficar com 40% da vida ou menos, recupera 8% da vida máxima por nível. (Guerreiro: Second Wind)"
+id_efeito = "segundo_folego"
+valor = 8.0
+nivel_max = 2
+custo_base = 70
+custo_por_nivel = 60
+classe = "cavaleiro"
+requisito_id = "postura_firme"
+requisito_nivel = 1

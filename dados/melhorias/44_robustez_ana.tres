@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="Melhoria" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/melhoria.gd" id="1_melhoria"]
+
+[resource]
+script = ExtResource("1_melhoria")
+id = "robustez_ana"
+nome = "Robustez Anã"
+descricao = "+1 de vida máxima a cada 3 níveis da partida. (Traço racial: Anão)"
+id_efeito = "vida_a_cada_3_niveis"
+valor = 1.0
+nivel_max = 1
+custo_base = 150
+custo_por_nivel = 0
+classe = ""
+requisito_id = "vitalidade"
+requisito_nivel = 4

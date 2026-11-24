@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="Melhoria" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/melhoria.gd" id="1_melhoria"]
+
+[resource]
+script = ExtResource("1_melhoria")
+id = "esquiva_sobrenatural"
+nome = "Esquiva Sobrenatural"
+descricao = "O primeiro golpe de espinhos ou fogo de cada nível que você não esquivar causa 25% menos dano. (Ladino: Uncanny Dodge)"
+id_efeito = "esquiva_sobrenatural"
+valor = 25.0
+nivel_max = 1
+custo_base = 140
+custo_por_nivel = 0
+classe = "ladino"
+requisito_id = "evasao"
+requisito_nivel = 2

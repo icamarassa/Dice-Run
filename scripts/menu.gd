@@ -17,6 +17,7 @@ var info_nivel: Label
 var info_desc: Label
 var info_custo: Label
 var info_atual: Melhoria
+var dica_flutuante: PainelDica
 
 
 func _ready() -> void:
@@ -34,6 +35,9 @@ func _ready() -> void:
 	label_ouro.custom_minimum_size = Vector2(320, 0)
 	label_ouro.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT, Control.PRESET_MODE_MINSIZE, 24)
 	add_child(label_ouro)
+
+	dica_flutuante = PainelDica.new()
+	add_child(dica_flutuante)
 
 	_mostrar_principal()
 
@@ -82,6 +86,8 @@ func _criar_estrelas() -> void:
 
 # Apaga a tela atual e devolve uma coluna nova, com um fade-in
 func _limpar() -> VBoxContainer:
+	if dica_flutuante:
+		dica_flutuante.esconder()
 	for filho in centro.get_children():
 		centro.remove_child(filho)
 		filho.queue_free()
@@ -254,77 +260,65 @@ func _mostrar_melhorias() -> void:
 	for classe in Salvamento.todas_classes():
 		_adicionar_aba(abas, classe.nome, classe.id)
 
-	# Árvore (à esquerda) e painel de detalhes (à direita)
-	var corpo := HBoxContainer.new()
-	corpo.add_theme_constant_override("separation", 16)
-	c.add_child(corpo)
-
 	var moldura := PanelContainer.new()
 	moldura.add_theme_stylebox_override("panel", Estilo.painel(Color(0, 0, 0, 0.35), 14, 6))
-	corpo.add_child(moldura)
-
-	var rolagem := ScrollContainer.new()
-	rolagem.custom_minimum_size = Vector2(800, 400)
-	moldura.add_child(rolagem)
+	c.add_child(moldura)
 
 	arvore = ArvoreMelhorias.new()
-	arvore.passou_o_mouse.connect(_mostrar_info)
+	arvore.custom_minimum_size = Vector2(1020, 430)
+	arvore.hover_mudou.connect(_on_hover_arvore)
 	arvore.compra_realizada.connect(_on_compra_realizada)
-	rolagem.add_child(arvore)
+	moldura.add_child(arvore)
 	arvore.construir(aba_atual)
-
-	corpo.add_child(_criar_painel_info())
 
 	var voltar := _botao("VOLTAR", Vector2(240, 54), false)
 	voltar.pressed.connect(_mostrar_principal)
 	c.add_child(voltar)
 
 
-func _criar_painel_info() -> PanelContainer:
-	var painel := PanelContainer.new()
-	painel.custom_minimum_size = Vector2(290, 400)
-	painel.add_theme_stylebox_override("panel", Estilo.painel(Color(0.1, 0.08, 0.18, 0.92), 14, 18))
+# A descrição aparece numa caixinha quando o mouse passa sobre uma melhoria
+func _on_hover_arvore(m: Melhoria, area: Rect2) -> void:
+	if m == null:
+		dica_flutuante.esconder()
+		return
 
-	var caixa := VBoxContainer.new()
-	caixa.add_theme_constant_override("separation", 12)
-	painel.add_child(caixa)
-
-	info_titulo = Estilo.novo_label("Passe o mouse\nsobre um ícone", 26, Color.WHITE)
-	info_nivel = Estilo.novo_label("", 18, Color(0.7, 0.7, 0.85))
-	info_desc = Estilo.novo_label("Clique num ícone disponível para comprar. As melhorias bloqueadas se abrem quando você evolui a anterior.", 17, Color(0.82, 0.82, 0.9))
-	info_custo = Estilo.novo_label("", 20, COR_OURO)
-	for l in [info_titulo, info_nivel, info_desc, info_custo]:
-		caixa.add_child(l)
-
-	info_atual = null
-	return painel
-
-
-func _mostrar_info(m: Melhoria) -> void:
-	info_atual = m
 	var nivel := Salvamento.nivel_melhoria(m.id)
-	info_titulo.text = m.nome
-	info_nivel.text = "Nível %d / %d" % [nivel, m.nivel_max]
-	info_desc.text = m.descricao
+	var corpo := m.descricao
+	var rodape := ""
+	var cor_rodape := COR_OURO
 
-	var motivo := Salvamento.motivo_bloqueio(m)
 	if nivel >= m.nivel_max:
-		info_custo.text = "NÍVEL MÁXIMO"
-		info_custo.add_theme_color_override("font_color", COR_OURO)
-	elif not Salvamento.requisito_cumprido(m):
-		info_custo.text = motivo
-		info_custo.add_theme_color_override("font_color", Color(1.0, 0.55, 0.45))
-	elif motivo == "Ouro insuficiente":
-		info_custo.text = "Custo: %d ouro\nFaltam %d" % [Salvamento.custo_melhoria(m), Salvamento.custo_melhoria(m) - Salvamento.ouro]
-		info_custo.add_theme_color_override("font_color", Color(1.0, 0.55, 0.45))
+		rodape = "NÍVEL MÁXIMO"
 	else:
-		info_custo.text = "Custo: %d ouro\nClique para comprar" % Salvamento.custo_melhoria(m)
-		info_custo.add_theme_color_override("font_color", COR_OURO)
+		var custo := Salvamento.custo_melhoria(m)
+		if Salvamento.ouro >= custo:
+			rodape = "Custo: %d ouro\nClique para comprar" % custo
+		else:
+			rodape = "Custo: %d ouro\nFaltam %d" % [custo, custo - Salvamento.ouro]
+			cor_rodape = Color(1.0, 0.55, 0.45)
+
+	# Dica do que vem a seguir (sem estragar a surpresa)
+	var proximo := _nivel_que_revela(m)
+	if proximo > 0 and nivel < proximo:
+		corpo += "\n\nEvoluir até o nível %d revela uma nova melhoria." % proximo
+
+	dica_flutuante.mostrar("%s   [%d/%d]" % [m.nome, nivel, m.nivel_max], corpo, rodape,
+		ArvoreLayout.cor(m), cor_rodape, area)
 
 
-func _on_compra_realizada(m: Melhoria) -> void:
+# Menor nível desta melhoria que ainda revela alguma filha escondida (0 = nenhuma)
+func _nivel_que_revela(m: Melhoria) -> int:
+	var menor := 0
+	for outra in Salvamento.todas_melhorias():
+		if outra.classe == m.classe and ArvoreLayout.pai(outra) == m.id and not Salvamento.requisito_cumprido(outra):
+			var exigido := ArvoreLayout.nivel_pai(outra)
+			if menor == 0 or exigido < menor:
+				menor = exigido
+	return menor
+
+
+func _on_compra_realizada(_m: Melhoria) -> void:
 	label_ouro.text = "Ouro: %d" % Salvamento.ouro
-	_mostrar_info(m)
 
 
 func _adicionar_aba(abas: HBoxContainer, texto: String, id_classe: String) -> void:
