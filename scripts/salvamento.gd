@@ -15,6 +15,10 @@ static var melhorias := {}                       # id da melhoria -> nível comp
 static var classes_desbloqueadas := ["cavaleiro"]
 static var classe_atual := "cavaleiro"
 static var melhor_nivel := 0
+static var vitorias := 0
+static var estat_tentativas := {}              # nível -> quantas vezes você chegou nele
+static var estat_passou := {}                  # nível -> quantas vezes você passou dele
+static var mult_dificuldade := 1.0             # ferramenta de teste (Opções)
 
 static var tela_cheia := false
 static var indice_resolucao := 0
@@ -39,6 +43,10 @@ static func carregar() -> void:
 		classes_desbloqueadas = cfg.get_value("progresso", "classes", ["cavaleiro"])
 		classe_atual = str(cfg.get_value("progresso", "classe_atual", "cavaleiro"))
 		melhor_nivel = int(cfg.get_value("progresso", "melhor_nivel", 0))
+		vitorias = int(cfg.get_value("progresso", "vitorias", 0))
+		estat_tentativas = cfg.get_value("progresso", "estat_tentativas", {})
+		estat_passou = cfg.get_value("progresso", "estat_passou", {})
+		mult_dificuldade = float(cfg.get_value("opcoes", "mult_dificuldade", 1.0))
 		tela_cheia = bool(cfg.get_value("opcoes", "tela_cheia", false))
 		indice_resolucao = clampi(int(cfg.get_value("opcoes", "indice_resolucao", 0)), 0, RESOLUCOES.size() - 1)
 		volume = float(cfg.get_value("opcoes", "volume", 0.8))
@@ -52,6 +60,10 @@ static func salvar() -> void:
 	cfg.set_value("progresso", "classes", classes_desbloqueadas)
 	cfg.set_value("progresso", "classe_atual", classe_atual)
 	cfg.set_value("progresso", "melhor_nivel", melhor_nivel)
+	cfg.set_value("progresso", "vitorias", vitorias)
+	cfg.set_value("progresso", "estat_tentativas", estat_tentativas)
+	cfg.set_value("progresso", "estat_passou", estat_passou)
+	cfg.set_value("opcoes", "mult_dificuldade", mult_dificuldade)
 	cfg.set_value("opcoes", "tela_cheia", tela_cheia)
 	cfg.set_value("opcoes", "indice_resolucao", indice_resolucao)
 	cfg.set_value("opcoes", "volume", volume)
@@ -64,10 +76,21 @@ static func resetar_progresso() -> void:
 	classes_desbloqueadas = ["cavaleiro"]
 	classe_atual = "cavaleiro"
 	melhor_nivel = 0
+	vitorias = 0
+	estat_tentativas = {}
+	estat_passou = {}
 	salvar()
 
 
 static func aplicar_opcoes() -> void:
+	# O jogo inteiro é desenhado numa área de 1152x648; o Godot escala para qualquer janela
+	var arvore := Engine.get_main_loop() as SceneTree
+	if arvore:
+		var raiz := arvore.root
+		raiz.content_scale_size = Vector2i(1152, 648)
+		raiz.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
+		raiz.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_KEEP
+
 	if tela_cheia:
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
 	else:
@@ -191,7 +214,15 @@ static func efeito_total(id_efeito: String, id_classe: String) -> float:
 
 # ---------- Fim da partida ----------
 
-static func registrar_run(nivel: int, ouro_ganho: int) -> void:
+static func registrar_run(nivel: int, ouro_ganho: int, venceu := false, contar_estatisticas := true) -> void:
 	ouro += ouro_ganho
 	melhor_nivel = maxi(melhor_nivel, nivel)
+	# Estatísticas: em cada nível, quantas vezes chegou e quantas vezes passou
+	# (abandonar uma partida não conta como derrota)
+	for n in range(1, (nivel + 1) if contar_estatisticas else 1):
+		estat_tentativas[n] = int(estat_tentativas.get(n, 0)) + 1
+		if n < nivel or venceu:
+			estat_passou[n] = int(estat_passou.get(n, 0)) + 1
+	if venceu:
+		vitorias += 1
 	salvar()

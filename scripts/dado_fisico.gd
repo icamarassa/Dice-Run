@@ -78,6 +78,7 @@ var som_toc: AudioStreamPlayer
 func _ready() -> void:
 	som_toc = AudioStreamPlayer.new()
 	som_toc.stream = preload("res://sons/dado.wav")
+	som_toc.volume_db = -2.0
 	add_child(som_toc)
 
 	estilo_mesa = StyleBoxFlat.new()

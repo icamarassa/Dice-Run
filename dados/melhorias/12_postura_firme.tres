@@ -6,7 +6,7 @@
 script = ExtResource("1_melhoria")
 id = "postura_firme"
 nome = "Postura Firme"
-descricao = "A Postura de Ferro bloqueia +1 golpe."
+descricao = "Quando a Postura de Ferro bloqueia um golpe, você recupera 2 PV por nível."
 id_efeito = "habilidade_forca"
 valor = 1.0
 nivel_max = 2

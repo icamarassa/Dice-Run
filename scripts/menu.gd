@@ -153,6 +153,10 @@ func _mostrar_principal() -> void:
 	opcoes.pressed.connect(_mostrar_opcoes)
 	c.add_child(opcoes)
 
+	var estatisticas := _botao("ESTATÍSTICAS", Vector2(340, 58), false)
+	estatisticas.pressed.connect(_mostrar_estatisticas)
+	c.add_child(estatisticas)
+
 	var sair := _botao("SAIR", Vector2(340, 58), false)
 	sair.pressed.connect(get_tree().quit)
 	c.add_child(sair)
@@ -340,6 +344,43 @@ func _on_aba_clicada(id_classe: String) -> void:
 
 
 # ======================================================
+#  ESTATÍSTICAS
+# ======================================================
+
+func _mostrar_estatisticas() -> void:
+	var c := _limpar()
+	_titulo(c, "Estatísticas")
+	c.add_child(Estilo.novo_label("Vitórias: %d      Melhor nível: %d" % [Salvamento.vitorias, Salvamento.melhor_nivel], 26, COR_OURO, false))
+	c.add_child(Estilo.novo_label("Chance de passar cada nível (quando você chega nele)", 18, Color(0.8, 0.8, 0.92), false))
+
+	var grade := GridContainer.new()
+	grade.columns = 3
+	grade.add_theme_constant_override("h_separation", 70)
+	grade.add_theme_constant_override("v_separation", 6)
+	c.add_child(grade)
+
+	# 3 colunas de 10 níveis, numeradas de cima para baixo
+	for linha in 10:
+		for coluna in 3:
+			var n := linha + 1 + coluna * 10
+			var tentou := int(Salvamento.estat_tentativas.get(n, 0))
+			var passou := int(Salvamento.estat_passou.get(n, 0))
+			var texto := "Nível %2d:   --" % n
+			var cor := Color(0.55, 0.55, 0.65)
+			if tentou > 0:
+				var pct := roundi(100.0 * passou / tentou)
+				texto = "Nível %2d:   %3d%%   (%d de %d)" % [n, pct, passou, tentou]
+				cor = Color.WHITE
+			var l := Estilo.novo_label(texto, 18, cor, false)
+			l.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+			grade.add_child(l)
+
+	var voltar := _botao("VOLTAR", Vector2(240, 54), false)
+	voltar.pressed.connect(_mostrar_principal)
+	c.add_child(voltar)
+
+
+# ======================================================
 #  OPÇÕES
 # ======================================================
 
@@ -403,6 +444,27 @@ func _mostrar_opcoes() -> void:
 
 	# Ferramentas de teste (remova quando o jogo estiver pronto)
 	c.add_child(Estilo.novo_label("Ferramentas de teste", 18, Color(0.6, 0.6, 0.75), false))
+
+	# Multiplicador de dificuldade (para você calibrar o jogo sem mexer no código)
+	var linha_dif := HBoxContainer.new()
+	linha_dif.add_theme_constant_override("separation", 20)
+	linha_dif.custom_minimum_size = Vector2(560, 0)
+	c.add_child(linha_dif)
+	var rotulo_dif := Label.new()
+	rotulo_dif.text = "Dificuldade (x%.2f)" % Salvamento.mult_dificuldade
+	rotulo_dif.add_theme_font_size_override("font_size", 22)
+	rotulo_dif.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	linha_dif.add_child(rotulo_dif)
+	var barra_dif := HSlider.new()
+	barra_dif.min_value = 0.5
+	barra_dif.max_value = 1.5
+	barra_dif.step = 0.05
+	barra_dif.value = Salvamento.mult_dificuldade
+	barra_dif.custom_minimum_size = Vector2(260, 28)
+	barra_dif.focus_mode = Control.FOCUS_NONE
+	barra_dif.value_changed.connect(_on_dificuldade.bind(rotulo_dif))
+	barra_dif.drag_ended.connect(_on_volume_solto)
+	linha_dif.add_child(barra_dif)
 	var dar_ouro := _botao("Dar 500 de ouro", Vector2(300, 46), false)
 	dar_ouro.pressed.connect(_on_dar_ouro)
 	c.add_child(dar_ouro)
@@ -434,6 +496,11 @@ func _on_volume(valor: float) -> void:
 
 func _on_volume_solto(_mudou: bool) -> void:
 	Salvamento.salvar()
+
+
+func _on_dificuldade(valor: float, rotulo: Label) -> void:
+	Salvamento.mult_dificuldade = valor
+	rotulo.text = "Dificuldade (x%.2f)" % valor
 
 
 func _on_dar_ouro() -> void:

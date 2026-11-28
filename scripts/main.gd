@@ -9,15 +9,16 @@ const CENA_MENU := "res://scenes/menu.tscn"
 var total_casas := 15
 const TAMANHO_CASA := 64
 const ESPACO := 8
-const ORIGEM := Vector2(36, 300)
+const ORIGEM := Vector2(36, 380)
 
 # Metade da janela (1152x648)
 const METADE_LARGURA := 576.0
 const METADE_ALTURA := 324.0
 
 const VIDA_INICIAL := 10
-const DANO_BASE := 4
-const DANO_POR_NIVEL := 0.5         # o dano base cresce 0,5 por nível
+const DANO_BASE := 5                 # golpe mínimo
+const DANO_PCT_BASE := 0.31          # os golpes também tiram uma % da vida máxima...
+const DANO_PCT_POR_NIVEL := 0.028    # ...que sobe 2,8 pontos percentuais por nível
 const CURA_POR_NIVEL := 0.5          # o curativo melhora 0,5 PV por nível
 
 const CASAS_PARA_REGEN := 4
@@ -31,13 +32,18 @@ const PENALIDADE_ABANDONO := 0.5     # quem abandona a partida perde metade do o
 const OURO_BAU_BASE := 8
 const OURO_BAU_POR_NIVEL := 3
 const OURO_POR_NIVEL_FINAL := 6      # bônus ao fim da partida, por nível alcançado
+const OURO_VITORIA := 150            # bônus por zerar o jogo
+
+# ---------- Fim do jogo ----------
+const NIVEL_MAXIMO := 30
+const TOTAL_CASAS_MAX := 27          # o tabuleiro para de crescer aqui (senão o nível 30 teria 73 casas)
 
 # ---------- Geração do tabuleiro ----------
 # O número de casas de cada tipo é FIXO por nível (em vez de sorteado casa a casa),
 # o que evita fases impossíveis e fases fáceis demais. No nível 1: 4 perigos e 4 buffs.
-const DENSIDADE_PERIGO_BASE := 0.30
-const DENSIDADE_PERIGO_POR_NIVEL := 0.015
-const DENSIDADE_PERIGO_MAX := 0.45
+const DENSIDADE_PERIGO_BASE := 0.28   # menos perigos, mas cada um pesa mais
+const DENSIDADE_PERIGO_POR_NIVEL := 0.008
+const DENSIDADE_PERIGO_MAX := 0.38
 const DENSIDADE_BUFF_INICIAL := 0.30   # buffs ficam mais raros conforme você avança
 const DENSIDADE_BUFF_FINAL := 0.20
 const NIVEL_BUFF_FINAL := 15
@@ -59,7 +65,7 @@ const ARMADILHAS := {
 	TipoCasa.ESPINHOS: {"nome": "Espinhos", "sigla": "ESP", "cor": Color(0.75, 0.25, 0.25),
 		"nivel_min": 1, "nivel_pleno": 15, "peso_ini": 100.0, "peso_fim": 30.0},
 	TipoCasa.VENENO: {"nome": "Veneno", "sigla": "VEN", "cor": Color(0.55, 0.72, 0.12),
-		"nivel_min": 2, "nivel_pleno": 12, "peso_ini": 25.0, "peso_fim": 60.0},
+		"nivel_min": 3, "nivel_pleno": 12, "peso_ini": 25.0, "peso_fim": 60.0},
 	TipoCasa.FOGO: {"nome": "Fogo", "sigla": "FOGO", "cor": Color(0.95, 0.5, 0.1),
 		"nivel_min": 3, "nivel_pleno": 15, "peso_ini": 20.0, "peso_fim": 55.0},
 	TipoCasa.ALCAPAO: {"nome": "Alçapão", "sigla": "QUEDA", "cor": Color(0.22, 0.22, 0.28),
@@ -86,9 +92,9 @@ const NIVEL_MIN_DADO := {4: 3, 6: 6, 8: 10, 10: 14, 12: 18, 20: 24}
 const PASTA_BUFFS := "res://dados/buffs/"
 
 # ---------- Interface ----------
-const MESA_POS := Vector2(360, 40)    # onde fica a mesa do dado
-const DICA_POS := Vector2(22, 145)
-const BARRA_POS := Vector2(74, 22)
+const MESA_POS := Vector2(376, 76)    # mesa do dado, centralizada na tela de 1152
+const DICA_POS := Vector2(0, 576)
+const BARRA_POS := Vector2(74, 18)
 const BARRA_TAM := Vector2(250, 28)
 const SEGUNDOS_PARA_DICA := 7.0
 
@@ -230,6 +236,7 @@ func _ready() -> void:
 	randomize()
 	Salvamento.carregar()
 	_esconder_nos_antigos()
+	_criar_fundo()
 	_organizar_interface()
 	_criar_barras()
 	_criar_hud()
@@ -302,7 +309,7 @@ func _on_pausa_continuar(pausa: Control) -> void:
 func _encerrar_partida_abandonada() -> void:
 	jogo_terminou = true
 	var ouro_levado := roundi(_calcular_ouro_total() * (1.0 - PENALIDADE_ABANDONO))
-	Salvamento.registrar_run(nivel, ouro_levado)
+	Salvamento.registrar_run(nivel, ouro_levado, false, false)
 	get_tree().paused = false
 
 
@@ -407,7 +414,7 @@ func _criar_botao_habilidade() -> void:
 				cor_icone = Color(1.0, 0.9, 0.5)
 
 	botao_habilidade.configurar(tipo_icone, cor_icone, 60.0)
-	botao_habilidade.position = Vector2(222, 70)
+	botao_habilidade.position = Vector2(663, 502)
 	botao_habilidade.pressionado.connect(_usar_habilidade)
 	botao_habilidade.dica_pedida.connect(_on_dica_habilidade)
 	botao_habilidade.visible = classe_jogador != null
@@ -425,7 +432,10 @@ func _atualizar_botao_habilidade() -> void:
 func _descricao_habilidade() -> String:
 	match classe_jogador.id_habilidade:
 		"postura_ferro":
-			return "Bloqueia os próximos %d golpes sofridos." % (1 + hab_forca)
+			var texto_postura := "Bloqueia o próximo golpe sofrido."
+			if hab_forca > 0:
+				texto_postura += " Ao bloquear, você recupera %d PV." % (2 * hab_forca)
+			return texto_postura
 		"impulso":
 			return "Sua próxima jogada anda +%d casas." % (2 + hab_forca)
 		"prece":
@@ -460,8 +470,8 @@ func _usar_habilidade() -> void:
 
 	match classe_jogador.id_habilidade:
 		"postura_ferro":
-			escudo_temp += 1 + hab_forca
-			_aviso("Postura de Ferro: os próximos %d golpes serão bloqueados!" % escudo_temp, COR_AVISO_BOM)
+			escudo_temp += 1
+			_aviso("Postura de Ferro: o próximo golpe será bloqueado!", COR_AVISO_BOM)
 		"impulso":
 			bonus_movimento += 2 + hab_forca
 			_aviso("Impulso! Sua próxima jogada anda +%d casas." % bonus_movimento, COR_AVISO_BOM)
@@ -494,12 +504,13 @@ func _esconder_nos_antigos() -> void:
 
 
 func _organizar_interface() -> void:
+	# Barra de ação centralizada embaixo: [ ROLAR ] [habilidade]
 	botao_rolar.text = "ROLAR"
-	botao_rolar.custom_minimum_size = Vector2(190, 60)
-	botao_rolar.size = Vector2(190, 60)
-	botao_rolar.position = Vector2(22, 70)
-	botao_rolar.pivot_offset = Vector2(95, 30)
-	_estilizar_botao_dourado(botao_rolar)
+	botao_rolar.custom_minimum_size = Vector2(220, 64)
+	botao_rolar.size = Vector2(220, 64)
+	botao_rolar.position = Vector2(429, 500)
+	botao_rolar.pivot_offset = Vector2(110, 32)
+	_estilizar_botao_dourado(botao_rolar, 30)
 
 
 # Estas três funções agora só repassam para o arquivo estilo.gd (usado também pelo menu)
@@ -620,7 +631,7 @@ func _criar_painel_status() -> void:
 	painel_status.add_child(label_status)
 
 	# Fica escondido: abre ao clicar no ícone de lista (ou com a tecla Tab)
-	painel_status.position = Vector2(get_viewport_rect().size.x - 350.0, 128)
+	painel_status.position = Vector2(get_viewport_rect().size.x - 350.0, 78)
 	painel_status.visible = false
 	$UI.add_child(painel_status)
 
@@ -636,9 +647,27 @@ func _criar_hud() -> void:
 	dica_ui = PainelDica.new()
 	$UI.add_child(dica_ui)
 
+	# Faixa escura no topo, que amarra todos os elementos do HUD
+	var faixa := ColorRect.new()
+	faixa.color = Color(0.04, 0.03, 0.09, 0.82)
+	faixa.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+	faixa.offset_bottom = 64.0
+	faixa.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	$UI.add_child(faixa)
+	$UI.move_child(faixa, 0)
+	var friso := ColorRect.new()
+	friso.color = Color(0.6, 0.48, 0.25, 0.9)
+	friso.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+	friso.offset_top = 64.0
+	friso.offset_bottom = 66.0
+	friso.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	$UI.add_child(friso)
+	$UI.move_child(friso, 1)
+
+	# Esquerda: coração + barra de vida
 	var coracao := BotaoIcone.new()
 	coracao.configurar("coracao", Color(0.95, 0.35, 0.42), 44.0)
-	coracao.position = Vector2(22, 14)
+	coracao.position = Vector2(22, 10)
 	$UI.add_child(coracao)
 	coracao.mouse_filter = Control.MOUSE_FILTER_IGNORE      # só enfeite
 
@@ -651,40 +680,87 @@ func _criar_hud() -> void:
 	label_hp.size = BARRA_TAM
 	$UI.add_child(label_hp)
 
-	# Nível (centro), com cor e nome do tema
+	# Centro: nível, com cor e nome do tema
 	label_nivel = _novo_label("", 26, Color.WHITE, false)
 	label_nivel.add_theme_constant_override("outline_size", 6)
 	label_nivel.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
 	label_nivel.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
-	label_nivel.offset_top = 4.0
-	label_nivel.offset_bottom = 38.0
+	label_nivel.offset_top = 14.0
+	label_nivel.offset_bottom = 50.0
 	$UI.add_child(label_nivel)
 
-	# Moedas (canto superior direito)
-	var caixa_ouro := HBoxContainer.new()
-	caixa_ouro.add_theme_constant_override("separation", 8)
-	caixa_ouro.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT, Control.PRESET_MODE_MINSIZE, 22)
-	caixa_ouro.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	$UI.add_child(caixa_ouro)
+	# Direita: [lista de modificadores] [moeda] [ouro]
+	var caixa_direita := HBoxContainer.new()
+	caixa_direita.add_theme_constant_override("separation", 10)
+	caixa_direita.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT, Control.PRESET_MODE_MINSIZE, 22)
+	caixa_direita.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	caixa_direita.offset_top = 9.0
+	caixa_direita.offset_bottom = 55.0
+	$UI.add_child(caixa_direita)
+
+	botao_status = BotaoIcone.new()
+	botao_status.configurar("lista", Color(0.75, 0.8, 1.0), 46.0)
+	botao_status.pressionado.connect(_alternar_status)
+	botao_status.dica_pedida.connect(_on_dica_status)
+	caixa_direita.add_child(botao_status)
+
+	var espaco := Control.new()
+	espaco.custom_minimum_size = Vector2(14, 0)
+	caixa_direita.add_child(espaco)
 
 	var moeda := BotaoIcone.new()
 	moeda.configurar("moeda", Color(1.0, 0.85, 0.3), 38.0)
-	caixa_ouro.add_child(moeda)
+	moeda.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	caixa_direita.add_child(moeda)
 	moeda.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	label_ouro_hud = _novo_label("0", 26, COR_OURO, false)
 	label_ouro_hud.add_theme_constant_override("outline_size", 5)
 	label_ouro_hud.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
 	label_ouro_hud.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	caixa_ouro.add_child(label_ouro_hud)
+	label_ouro_hud.custom_minimum_size = Vector2(40, 0)
+	caixa_direita.add_child(label_ouro_hud)
 
-	# Ícone que abre a lista de modificadores
-	botao_status = BotaoIcone.new()
-	botao_status.configurar("lista", Color(0.75, 0.8, 1.0), 46.0)
-	botao_status.position = Vector2(get_viewport_rect().size.x - 22.0 - 46.0, 66)
-	botao_status.pressionado.connect(_alternar_status)
-	botao_status.dica_pedida.connect(_on_dica_status)
-	$UI.add_child(botao_status)
+
+# Fundo do jogo: degradê, estrelas e uma faixa de "chão" sob o tabuleiro
+func _criar_fundo() -> void:
+	var camada := CanvasLayer.new()
+	camada.layer = -10
+	add_child(camada)
+
+	var gradiente := Gradient.new()
+	gradiente.colors = PackedColorArray([Color(0.11, 0.08, 0.2), Color(0.04, 0.03, 0.09)])
+	gradiente.offsets = PackedFloat32Array([0.0, 1.0])
+	var textura := GradientTexture2D.new()
+	textura.gradient = gradiente
+	textura.fill_from = Vector2(0, 0)
+	textura.fill_to = Vector2(0, 1)
+
+	var fundo := TextureRect.new()
+	fundo.texture = textura
+	fundo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	fundo.stretch_mode = TextureRect.STRETCH_SCALE
+	fundo.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	camada.add_child(fundo)
+
+	for i in 40:
+		var e := ColorRect.new()
+		var lado := randf_range(2.0, 4.0)
+		e.size = Vector2(lado, lado)
+		e.position = Vector2(randf() * 1152.0, randf() * 648.0)
+		e.color = Color(1.0, 0.9, 0.6, randf_range(0.12, 0.4))
+		e.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		camada.add_child(e)
+		var t := e.create_tween().set_loops()
+		t.tween_property(e, "modulate:a", 0.15, randf_range(1.5, 3.5))
+		t.tween_property(e, "modulate:a", 1.0, randf_range(1.5, 3.5))
+
+	var chao := ColorRect.new()
+	chao.color = Color(0, 0, 0, 0.28)
+	chao.position = Vector2(0, ORIGEM.y - 18.0)
+	chao.size = Vector2(1152, TAMANHO_CASA + 36.0)
+	chao.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	camada.add_child(chao)
 
 
 func _tema_do_nivel() -> Dictionary:
@@ -787,8 +863,9 @@ func _plim(casas: int) -> void:
 
 
 func _criar_dica() -> void:
-	dica_rolar = _novo_label("Role o dado!", 36, Color(1.0, 0.85, 0.3), false)
-	dica_rolar.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	dica_rolar = _novo_label("Role o dado!", 34, Color(1.0, 0.85, 0.3), false)
+	dica_rolar.custom_minimum_size = Vector2(1152, 0)     # ocupa a largura toda, texto centralizado
+	dica_rolar.size = Vector2(1152, 44)
 	dica_rolar.position = DICA_POS
 	dica_rolar.modulate.a = 0.0
 	$UI.add_child(dica_rolar)
@@ -851,6 +928,12 @@ func _receber_dano(base: int, elemento: String, nome: String, bloqueavel := true
 	if bloqueavel and escudo_temp > 0:
 		escudo_temp -= 1
 		_aviso("A Postura de Ferro bloqueou o dano de %s!" % nome, COR_AVISO_BOM)
+		# Postura Firme (melhoria): bloquear também cura
+		if hab_forca > 0 and classe_jogador and classe_jogador.id_habilidade == "postura_ferro":
+			var cura_postura := 2 * hab_forca
+			vida = mini(vida + cura_postura, vida_maxima)
+			_aviso("Postura Firme: +%d PV" % cura_postura, COR_AVISO_BOM)
+			_atualizar_vida()
 		_atualizar_status()
 		return
 	if bloqueavel and escudo_cargas > 0:
@@ -1345,7 +1428,11 @@ func _posicao_do_marcador(indice: int) -> Vector2:
 
 
 func _dano_do_nivel() -> int:
-	return DANO_BASE + int((nivel - 1) * DANO_POR_NIVEL)
+	# O golpe é o maior entre um valor mínimo e uma % da vida máxima. Assim, empilhar vida
+	# não resolve tudo: o que protege é armadura, resistência, esquiva e habilidades.
+	var pct := DANO_PCT_BASE + DANO_PCT_POR_NIVEL * (nivel - 1)
+	var bruto := maxi(DANO_BASE, roundi(vida_maxima * pct))
+	return maxi(roundi(bruto * Salvamento.mult_dificuldade), 1)
 
 
 func _frase_do_nivel(n: int) -> String:
@@ -1386,7 +1473,7 @@ func _transicao_de_nivel() -> void:
 	# O descanso é uma porcentagem da vida máxima: assim vida máxima importa de verdade
 	var descanso := maxi(2, roundi(vida_maxima * (DESCANSO_PCT + descanso_pct_bonus))) + bonus_descanso
 	nivel += 1
-	total_casas += 2
+	total_casas = mini(total_casas + 2, TOTAL_CASAS_MAX)
 	if hp_a_cada_3 > 0 and nivel % 3 == 0:
 		vida_maxima += hp_a_cada_3     # Robustez Anã
 		vida += hp_a_cada_3
@@ -1554,7 +1641,10 @@ func _resolver_casa() -> void:
 		await _escolher_buff()
 
 	if posicao_atual == total_casas - 1:
-		await _transicao_de_nivel()
+		if nivel >= NIVEL_MAXIMO:
+			await _vitoria()
+		else:
+			await _transicao_de_nivel()
 
 
 # ---------- Baú ----------
@@ -1715,6 +1805,54 @@ func _fim_de_jogo() -> void:
 		i += 1
 
 	# O botão principal pulsa, igual ao ROLAR
+	var pulso := botao.create_tween().set_loops()
+	pulso.tween_property(botao, "scale", Vector2(1.06, 1.06), 0.5).set_trans(Tween.TRANS_SINE)
+	pulso.tween_property(botao, "scale", Vector2.ONE, 0.5).set_trans(Tween.TRANS_SINE)
+
+
+# Tela de vitória: zerou os 30 níveis
+func _vitoria() -> void:
+	jogo_terminou = true
+	botao_rolar.disabled = true
+	dado_fisico.habilitado = false
+	_atualizar_botao_habilidade()
+	_pulsar_botao(false)
+	timer_dica.stop()
+
+	var ouro_total := _calcular_ouro_total() + OURO_VITORIA
+	Salvamento.registrar_run(nivel, ouro_total, true)
+
+	await get_tree().create_timer(0.8).timeout
+
+	var coluna := _criar_overlay(0.9)
+	var titulo := _novo_label("VITÓRIA!", 84, COR_OURO, false)
+	var detalhe := _novo_label("Você concluiu os %d níveis!" % NIVEL_MAXIMO, 32, Color.WHITE, false)
+	var estatisticas := _novo_label("Buffs obtidos: %d" % buffs_pegos, 22, Color(0.85, 0.85, 0.9), false)
+	var recompensa := _novo_label("Ouro ganho: +%d   (total: %d)" % [ouro_total, Salvamento.ouro], 28, COR_OURO, false)
+
+	var botao := Button.new()
+	botao.text = "JOGAR DE NOVO"
+	botao.custom_minimum_size = Vector2(300, 70)
+	botao.pivot_offset = Vector2(150, 35)
+	botao.focus_mode = Control.FOCUS_NONE
+	_estilizar_botao_dourado(botao, 28)
+	botao.pressed.connect(_reiniciar)
+
+	var botao_menu := Button.new()
+	botao_menu.text = "MENU"
+	botao_menu.custom_minimum_size = Vector2(300, 54)
+	botao_menu.focus_mode = Control.FOCUS_NONE
+	Estilo.botao_secundario(botao_menu, 22)
+	botao_menu.pressed.connect(_ir_para_menu)
+
+	for item in [titulo, detalhe, estatisticas, recompensa, botao, botao_menu]:
+		coluna.add_child(item)
+	var i := 0
+	for item in [titulo, detalhe, estatisticas, recompensa, botao, botao_menu]:
+		item.modulate.a = 0.0
+		item.create_tween().tween_property(item, "modulate:a", 1.0, 0.5).set_delay(0.25 * i)
+		i += 1
+
 	var pulso := botao.create_tween().set_loops()
 	pulso.tween_property(botao, "scale", Vector2(1.06, 1.06), 0.5).set_trans(Tween.TRANS_SINE)
 	pulso.tween_property(botao, "scale", Vector2.ONE, 0.5).set_trans(Tween.TRANS_SINE)

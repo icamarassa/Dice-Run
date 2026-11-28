@@ -1,6 +1,7 @@
 [gd_scene format=3 uid="uid://cxh7kmdk4v7jg"]
 
 [ext_resource type="Script" uid="uid://c4nnhutlxrwoa" path="res://scripts/menu.gd" id="1_yqeox"]
+[ext_resource type="AudioStream" uid="uid://bo578e1epo4oa" path="res://sons/Dream Traveller.mp3" id="2_vjb58"]
 
 [node name="Menu" type="Control" unique_id=1374682304]
 layout_mode = 3
@@ -10,3 +11,8 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_yqeox")
+
+[node name="AudioStreamPlayer2D" type="AudioStreamPlayer2D" parent="." unique_id=397130663]
+stream = ExtResource("2_vjb58")
+volume_db = 5.0
+autoplay = true

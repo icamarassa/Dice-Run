@@ -84,10 +84,11 @@ func construir(id_aba: String) -> void:
 		progresso_linha[m.id] = 1.0 if liberada else 0.0
 		no.visible = liberada
 
-	zoom = 1.0
-	mundo.scale = Vector2.ONE
+	# O zoom inicial faz a árvore inteira caber na janela
 	var janela := _tamanho_janela()
-	mundo.position = (janela - area_conteudo) / 2.0
+	zoom = clampf(minf(1.0, minf((janela.x - 60.0) / area_conteudo.x, (janela.y - 60.0) / area_conteudo.y)), ZOOM_MIN, 1.0)
+	mundo.scale = Vector2(zoom, zoom)
+	mundo.position = (janela - area_conteudo * zoom) / 2.0
 	atualizar(false)
 
 

@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 134 108">
+
+  <defs>
+    <linearGradient id="mainGem" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#69ec81"/>
+      <stop offset="100%" stop-color="#168941"/>
+    </linearGradient>
+
+    <filter id="shadow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="4"/>
+    </filter>
+
+    <filter id="textShadow">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.5"
+                    flood-color="#111827" flood-opacity="1"/>
+    </filter>
+  </defs>
+
+  <!-- Sombra -->
+  <ellipse
+    cx="67"
+    cy="80"
+    rx="36"
+    ry="12"
+    fill="#000"
+    opacity="0.45"
+    filter="url(#shadow)"
+  />
+
+  <!-- Contorno externo -->
+  <polygon
+    points="67,7 104,44 67,81 30,44"
+    fill="#206c36"/>
+
+  <!-- Corpo principal -->
+  <polygon
+    points="67,10 100,44 67,78 34,44"
+    fill="url(#mainGem)"
+  />
+
+  <!-- Faceta superior esquerda -->
+  <polygon
+    points="67,10 34,44 67,44"
+    fill="#7cf29a"
+  />
+
+  <!-- Faceta superior direita -->
+  <polygon
+    points="67,10 100,44 67,44"
+    fill="#49d66f"
+  />
+
+  <!-- Faceta inferior esquerda -->
+  <polygon
+    points="34,44 67,78 67,44"
+    fill="#2cab51"
+  />
+
+  <!-- Faceta inferior direita -->
+  <polygon
+    points="67,44 67,78 100,44"
+    fill="#17853d"
+  />
+
+  <!-- Centro brilhante -->
+  <polygon
+    points="67,26 84,44 67,62 50,44"
+    fill="#58db78"
+    opacity="0.45"
+  />
+
+  <!-- Faixa horizontal -->
+  <polygon
+    points="36,38 98,38 106,44 98,50 36,50 28,44"
+    fill="#99ffab"
+    opacity="0.75"
+  />
+
+  <!-- Brilho superior -->
+  <polygon
+    points="67,13 94,40 40,40"
+    fill="#ffffff"
+    opacity="0.18"
+  />
+
+  <!-- Número -->
+  <text
+    x="67"
+    y="53"
+    text-anchor="middle"
+    font-family="Verdana, Arial, sans-serif"
+    font-size="24"
+    fill="#27203d"
+    filter="url(#textShadow)">
+    3
+  </text>
+
+</svg>
